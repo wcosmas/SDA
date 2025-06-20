@@ -806,11 +806,11 @@ The refactored ETL pipeline is designed for high-quality, structured household s
 
 ---
 
-## 🔄 Enhanced Data Flow
+## 🔄 Data Flow
 
 ```mermaid
 graph TD
-    A[Field Data Collection<br/>75 Variables] --> B[Data Ingestion API v2.0]
+    A[Field Data Collection<br/>75 Variables] --> B[Data Ingestion API]
     B --> C[Enhanced Validation<br/>98.5% Success Rate]
     C --> D[Vulnerability Classification<br/>Assessment Thresholds]
     D --> E[Feature Engineering<br/>11 Enhanced Features]
