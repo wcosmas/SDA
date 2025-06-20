@@ -1,0 +1,166 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# RTV Senior Data Scientist Technical Assessment - Tasks Breakdown
+
+## Assessment Overview
+- **Time Limit**: 7 Hours
+- **Total Points**: 60
+- **Organization**: Raising The Village (RTV)
+- **Department**: VENN (Data and Technology)
+- **Contact**: 0775648275/0705945524
+
+## Submission Requirements
+- GitHub repository with organized folder structure
+- Complete end-to-end solution for household vulnerability prediction
+
+---
+
+## Part A: Predictive Modeling with 'DataScientist_01_Assessment' Data (25 Points)
+
+### Data Preparation Tasks
+- [ ] Load and explore the Annual Household Survey (AHS) dataset
+- [ ] Create data dictionary and understand all variables
+- [ ] **Create 'ProgressStatus' variable** based on 'HHIncome+Consumption+Residues/Day':
+  - "On Track": >= 2.15
+  - "At Risk": >= 1.77
+  - "Struggling": >= 1.25
+  - "Severely Struggling": < 1.25
+- [ ] Perform exploratory data analysis (EDA)
+- [ ] Handle missing values, outliers, and data quality issues
+- [ ] Feature engineering and selection
+
+### Model Development Tasks
+- [ ] Build interpretable ML model to predict household vulnerability levels (High, Moderate, Low)
+- [ ] Implement model that supports continuous learning for quarterly/annual updates
+- [ ] Ensure model scalability and interpretability
+- [ ] Validate model performance using appropriate metrics
+- [ ] Test model robustness across different subgroups
+
+### Analysis and Interpretation Tasks
+- [ ] **Identify most significant features** influencing "At Risk" or "Struggling" predictions
+- [ ] **Analyze model consistency** across:
+  - Sub-regions
+  - Gender groups
+  - Household sizes
+- [ ] **Evaluate borderline cases** (predictions near cutoff thresholds)
+- [ ] **Assess prediction confidence** for field officer trust
+- [ ] **Develop guidance** for combining model output with interpretability insights
+
+### Documentation Tasks
+- [ ] **Write 2-page summary** covering:
+  - Modeling choices and rationale
+  - Key findings and insights
+  - Recommendations for RTV implementation
+  - Model limitations and considerations
+
+---
+
+## Part B: Data Engineering for Receiving New Data (15 Points)
+
+### ETL Pipeline Design Tasks
+- [ ] **Design automated ETL pipeline** for new data processing
+- [ ] **Implement data ingestion** component for field uploads
+- [ ] **Build cleaning and transformation logic**
+- [ ] **Design secure storage solution**
+- [ ] **Create model retraining logic** for automatic updates
+
+### Technical Implementation Tasks
+- [ ] **Provide sample code** for one pipeline component
+- [ ] **Create architecture diagram** showing complete data flow
+- [ ] **Document tech stack choices** with justification
+- [ ] Ensure pipeline handles quarterly/annual data updates
+- [ ] Include error handling and data validation
+
+### Pipeline Components to Address
+- [ ] Data ingestion from field devices
+- [ ] Data quality checks and validation
+- [ ] Transformation and feature engineering
+- [ ] Model versioning and retraining triggers
+- [ ] Output generation and distribution
+
+---
+
+## Part C: Product Integration - WorkMate Mobile App (20 Points)
+
+### Model Packaging Tasks
+- [ ] **Select and package ML model** for deployment
+- [ ] Optimize model for resource-constrained environments
+- [ ] Ensure compatibility with mobile/backend inference
+- [ ] Implement model versioning and updates
+
+### Architecture Design Tasks
+- [ ] **Create architecture diagram** showing integration between:
+  - WorkMate mobile app
+  - Backend/cloud infrastructure
+  - Field devices
+- [ ] **Design offline capability** provisions
+- [ ] **Plan data synchronization** when connectivity restored
+- [ ] Address low-bandwidth environment constraints
+
+### User Experience Design Tasks
+- [ ] **Design field officer user flow** including:
+  - Data input process
+  - Real-time prediction generation
+  - Suggested action presentation
+  - Offline fallback handling
+  - Local storage management
+  - Background syncing when connected
+
+### Technical Implementation Tasks
+- [ ] **Develop working code demonstration** that:
+  - Takes household-level input
+  - Generates predictions using packaged model
+  - Stores results securely
+  - Handles offline/online scenarios
+  - Integrates with broader system architecture
+
+### Integration Considerations
+- [ ] Handle intermittent connectivity
+- [ ] Optimize for mobile device constraints
+- [ ] Ensure data security and privacy
+- [ ] Plan for model updates in field environments
+- [ ] Design user-friendly interface for field officers
+
+---
+
+## Success Criteria Summary
+
+### Technical Proficiency
+- Robust, scalable ML solution
+- Clean, well-documented code
+- Appropriate technology choices
+
+### Innovation
+- Creative solutions for offline environments
+- Effective handling of resource constraints
+- Novel approaches to continuous learning 
+
+### Leadership
+- Clear documentation and communication
+- Strategic thinking in design decisions
+- Consideration of real-world implementation challenges
+
+### Communication
+- Clear 2-page summary
+- Effective architecture diagrams
+- User-friendly design considerations
+
+### Contextual Relevance
+- Solutions aligned with RTV's mission
+- Practical for last-mile communities
+- Addresses real development challenges
+
+---
+
+## Deliverables Checklist
+- [ ] GitHub repository with organized structure
+- [ ] Trained ML model with evaluation metrics
+- [ ] 2-page modeling summary
+- [ ] ETL pipeline code and architecture diagram
+- [ ] Mobile app integration demonstration
+- [ ] Working code for all components
+- [ ] Complete documentation
+- [ ] Architecture diagrams for all parts

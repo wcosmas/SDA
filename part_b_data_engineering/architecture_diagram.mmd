@@ -1,0 +1,88 @@
+graph TB
+    subgraph "Data Sources"
+        A[Field Devices<br/>Mobile Apps] --> B[API Gateway<br/>FastAPI]
+        C[File Uploads<br/>CSV/Excel] --> B
+        D[External Systems<br/>Quarterly Reports] --> B
+    end
+
+    subgraph "Data Ingestion Layer"
+        B --> E[Data Ingestion Service]
+        E --> F[Temporary Storage<br/>Staging Area]
+        E --> G[Ingestion Queue<br/>Redis/Celery]
+    end
+
+    subgraph "Data Validation & Quality"
+        F --> H[Data Validator]
+        H --> I{Quality Check<br/>Pass?}
+        I -->|Pass| J[Validated Storage]
+        I -->|Fail| K[Error Queue<br/>Manual Review]
+    end
+
+    subgraph "Data Transformation"
+        J --> L[Feature Engineer]
+        L --> M[Processed Data<br/>Storage]
+    end
+
+    subgraph "Storage Layer"
+        N[AWS S3<br/>Primary Storage]
+        O[Azure Blob<br/>Secondary Storage]
+        P[Local Storage<br/>Development]
+        Q[PostgreSQL<br/>Metadata & Status]
+        
+        F --> N
+        J --> N
+        M --> N
+        F --> O
+        J --> O
+        M --> O
+        F --> P
+        J --> P
+        M --> P
+        
+        E --> Q
+        H --> Q
+        L --> Q
+    end
+
+    subgraph "ML Pipeline"
+        M --> R[Model Trainer]
+        R --> S{Retrain<br/>Needed?}
+        S -->|Yes| T[Model Training]
+        S -->|No| U[Current Model]
+        T --> V[Model Registry<br/>MLflow]
+        U --> V
+        V --> W[Prediction Service]
+        M --> W
+        W --> X[Predictions Storage]
+    end
+
+    subgraph "Monitoring & Orchestration"
+        Y[ETL Orchestrator<br/>APScheduler]
+        Z[Pipeline Monitor<br/>Prometheus]
+        AA[Alerting System<br/>Email/Slack]
+        
+        Y --> E
+        Y --> H
+        Y --> L
+        Y --> R
+        Z --> AA
+    end
+
+    subgraph "Security & Encryption"
+        BB[Data Encryption<br/>Fernet]
+        CC[Access Control<br/>JWT Tokens]
+        DD[Audit Logging<br/>Structured Logs]
+        
+        N --> BB
+        O --> BB
+        B --> CC
+        E --> DD
+    end
+
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style E fill:#fff3e0
+    style H fill:#f1f8e9
+    style L fill:#fff8e1
+    style R fill:#fce4ec
+    style Y fill:#e8f5e8 
