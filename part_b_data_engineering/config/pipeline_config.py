@@ -3,7 +3,6 @@ Part B: Data Engineering Pipeline Configuration
 RTV Senior Data Scientist Technical Assessment
 
 This module contains all configuration settings for the ETL pipeline.
-Updated for DataScientist_01_Assessment.csv dataset structure (75 variables, 3,897 households)
 """
 
 import os

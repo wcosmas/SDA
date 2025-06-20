@@ -23,7 +23,7 @@ import numpy as np
 from sklearn.metrics import f1_score, accuracy_score
 
 from config.pipeline_config import config
-from ingestion.data_ingestion import DataIngestionService, BatchIngestionProcessor
+from ingestion.data_ingestion import  BatchIngestionProcessor
 from validation.data_validator import DataValidator
 from storage.storage_manager import StorageManager
 from pipeline.feature_engineer import FeatureEngineer
