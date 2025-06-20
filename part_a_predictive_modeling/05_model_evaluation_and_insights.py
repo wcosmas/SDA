@@ -5,8 +5,8 @@ RTV Senior Data Scientist Technical Assessment - Part A
 This script provides comprehensive evaluation of the trained model and generates
 actionable business insights for the RTV program.
 
-Author: Data Science Team
-Date: December 2024
+Author: Cosmas Wamozo
+Date: June 2025
 """
 
 import pandas as pd

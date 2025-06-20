@@ -6,8 +6,8 @@ RTV Senior Data Scientist Technical Assessment - Part A
 This script performs detailed EDA on the household vulnerability dataset
 including feature analysis, correlation studies, and vulnerability patterns.
 
-Author: Data Science Team
-Date: December 2024
+Author: Cosmas Wamozo
+Date: June 2025
 """
 
 import pandas as pd

@@ -6,8 +6,8 @@ RTV Senior Data Scientist Technical Assessment - Part A
 This script performs initial exploration of the DataScientist_01_Assessment.csv dataset
 to understand the structure, quality, and characteristics of the household survey data.
 
-Author: Data Science Team
-Date: December 2024
+Author: Cosmas Wamozo
+Date: June 2025
 """
 
 import pandas as pd

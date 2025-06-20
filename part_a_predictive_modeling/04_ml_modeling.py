@@ -6,8 +6,8 @@ RTV Senior Data Scientist Technical Assessment - Part A
 This script develops and evaluates ML models for household vulnerability prediction
 using the cleaned and analyzed dataset.
 
-Author: Data Science Team
-Date: December 2024
+Author: Cosmas Wamozo
+Date: June 2025
 """
 
 import pandas as pd

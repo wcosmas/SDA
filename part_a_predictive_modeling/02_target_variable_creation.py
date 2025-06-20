@@ -6,8 +6,8 @@ RTV Senior Data Scientist Technical Assessment - Part A
 This script creates the ProgressStatus target variable from the 
 HHIncome+Consumption+Residues/Day column according to assessment requirements.
 
-Author: Data Science Team
-Date: December 2024
+Author: Cosmas Wamozo
+Date: June 2025
 """
 
 import pandas as pd

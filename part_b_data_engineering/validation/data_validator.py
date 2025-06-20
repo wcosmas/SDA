@@ -7,8 +7,6 @@ This module provides comprehensive data validation for household survey data:
 - Data quality checks optimized for high-quality data (97.4% completeness)
 - Business rule validation based on assessment thresholds
 - Statistical anomaly detection
-
-Updated for DataScientist_01_Assessment.csv structure
 """
 
 import pandas as pd
