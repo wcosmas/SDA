@@ -12,17 +12,6 @@
 
 This repository contains a **complete end-to-end solution** for household vulnerability assessment in last-mile communities, developed for **Raising The Village (RTV)**. The solution encompasses machine learning, data engineering, and mobile application integration to enable evidence-based decision making for field officers operating in resource-constrained environments.
 
-### 📊 Assessment Results Summary
-
-| Part  | Component           | Points    | Status          | Key Achievement                |
-| ----- | ------------------- | --------- | --------------- | ------------------------------ |
-| **A** | Predictive Modeling | 25/25     | ✅ Complete     | 97.9% accuracy, 97.6% F1-score |
-| **B** | Data Engineering    | 15/15     | ✅ Complete     | 100% pipeline success rate     |
-| **C** | Mobile Integration  | 20/20     | ✅ Complete     | Production-ready mobile app    |
-|       | **TOTAL**           | **60/60** | ✅ **COMPLETE** | **Full-stack solution**        |
-
----
-
 ## 🏗️ System Architecture Overview
 
 ### 📱 Field Operations Layer
