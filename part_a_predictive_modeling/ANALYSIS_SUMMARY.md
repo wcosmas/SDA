@@ -2,8 +2,8 @@
 
 ## Household Vulnerability Prediction Model - Analysis Summary
 
-**Date:** 2024  
-**Author:** Data Science Team  
+**Date:** 2025  
+**Author:** Cosmas Wamozo  
 **Project:** Household Vulnerability Prediction for Rural Targeting and Vulnerability Assessment
 
 ---
