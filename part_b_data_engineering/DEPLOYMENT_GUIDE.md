@@ -13,6 +13,8 @@
 - AWS/Azure account (for production)
 - PostgreSQL 12+ (for production)
 - Redis (for background processing)
+- Minimum 8GB RAM (for ML models)
+- 4+ CPU cores (recommended)
 
 ### 1. Environment Setup
 
@@ -35,25 +37,68 @@ pip install -r requirements.txt
 cp config/pipeline_config.py.example config/pipeline_config.py
 
 # Edit configuration for your environment
-# Set storage provider, database credentials, etc.
+# Set storage provider, database credentials, ML model paths, etc.
 ```
 
 ### 3. Database Setup
 
 ```sql
--- For PostgreSQL
-CREATE DATABASE rtv_household_data;
+-- For PostgreSQL (Metadata)
+CREATE DATABASE rtv_pipeline;
 CREATE USER pipeline_user WITH PASSWORD 'your_password';
-GRANT ALL PRIVILEGES ON DATABASE rtv_household_data TO pipeline_user;
+GRANT ALL PRIVILEGES ON DATABASE rtv_pipeline TO pipeline_user;
+
+-- For SQLite (Monitoring) - automatically created
+-- File: monitoring/pipeline_metrics.db
 ```
 
-### 4. Run Pipeline Demo
+### 4. Model Setup
 
 ```bash
-# Run comprehensive demonstration
-python demo_pipeline.py
+# Ensure Part A models are available
+ls ../part_a_predictive_modeling/models/
+# Should contain: vulnerability_model.pkl, feature_pipeline.pkl
 
-# Expected output: 100% success rate with generated predictions
+# Or use demo models
+python -c "
+from pipeline.model_trainer import ModelTrainer
+trainer = ModelTrainer()
+print('Model status:', trainer.get_model_info()['status'])
+"
+```
+
+### 5. Run Complete Integration Demo
+
+```bash
+# Run comprehensive ML-integrated demonstration
+python pipeline_demo.py
+
+# Expected output:
+# - Feature engineering: 50+ features processed
+# - Model training: 97.9% accuracy maintained
+# - ETL orchestration: Complete pipeline demo
+# - Data validation: Quality checks passed
+# - Real-time predictions: Vulnerability assessments generated
+```
+
+### 6. Start Monitoring
+
+```bash
+# Initialize monitoring database
+python -c "
+from monitoring.pipeline_monitor import PipelineMonitor
+import asyncio
+asyncio.run(PipelineMonitor().initialize())
+"
+
+# Check system health
+python -c "
+from monitoring.pipeline_monitor import PipelineMonitor
+monitor = PipelineMonitor()
+health = monitor.get_pipeline_health()
+print(f'Health score: {health[\"health_score\"]:.2f}')
+print(f'Status: {health[\"status\"]}')
+"
 ```
 
 ---
@@ -71,34 +116,52 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://user:pass@postgres:5432/rtv_data
+      - DATABASE_URL=postgresql://user:pass@postgres:5432/rtv_pipeline
       - STORAGE_PROVIDER=aws
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - MODEL_PATH=models/production_model.pkl
+      - MONITORING_DB_PATH=monitoring/pipeline_metrics.db
+      - MIN_NEW_SAMPLES=1000
+      - PERFORMANCE_THRESHOLD=0.85
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./monitoring:/app/monitoring
+      - ./logs:/app/logs
     depends_on:
       - postgres
       - redis
 
   postgres:
-    image: postgres:13
+    image: postgres:15
     environment:
-      - POSTGRES_DB=rtv_household_data
+      - POSTGRES_DB=rtv_pipeline
       - POSTGRES_USER=pipeline_user
       - POSTGRES_PASSWORD=secure_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
 
   redis:
-    image: redis:6-alpine
+    image: redis:7-alpine
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
+    ports:
+      - "6379:6379"
 
   celery-worker:
     build: .
-    command: celery -A pipeline.etl_orchestrator worker --loglevel=info
+    command: celery -A pipeline.etl_orchestrator worker --loglevel=info --concurrency=4
     environment:
-      - DATABASE_URL=postgresql://user:pass@postgres:5432/rtv_data
+      - DATABASE_URL=postgresql://user:pass@postgres:5432/rtv_pipeline
+      - MODEL_PATH=models/production_model.pkl
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./monitoring:/app/monitoring
     depends_on:
       - postgres
       - redis
@@ -106,6 +169,28 @@ services:
   scheduler:
     build: .
     command: python -c "from pipeline.etl_orchestrator import create_etl_orchestrator; import asyncio; asyncio.run(create_etl_orchestrator().start_pipeline())"
+    environment:
+      - DATABASE_URL=postgresql://user:pass@postgres:5432/rtv_pipeline
+      - MODEL_PATH=models/production_model.pkl
+      - MONITORING_DB_PATH=monitoring/pipeline_metrics.db
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./monitoring:/app/monitoring
+      - ./logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+
+  monitoring:
+    build: .
+    command: python -c "from monitoring.pipeline_monitor import PipelineMonitor; import asyncio; monitor = PipelineMonitor(); asyncio.run(monitor.start_monitoring())"
+    environment:
+      - MONITORING_DB_PATH=monitoring/pipeline_metrics.db
+      - ALERT_EMAIL=admin@yourorg.com
+    volumes:
+      - ./monitoring:/app/monitoring
+      - ./logs:/app/logs
     depends_on:
       - postgres
       - redis
@@ -144,6 +229,90 @@ spec:
                 secretKeyRef:
                   name: pipeline-secrets
                   key: database-url
+            - name: MODEL_PATH
+              value: "models/production_model.pkl"
+            - name: MONITORING_DB_PATH
+              value: "monitoring/pipeline_metrics.db"
+            - name: PERFORMANCE_THRESHOLD
+              value: "0.85"
+          volumeMounts:
+            - name: data-volume
+              mountPath: /app/data
+            - name: models-volume
+              mountPath: /app/models
+            - name: monitoring-volume
+              mountPath: /app/monitoring
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: data-volume
+          persistentVolumeClaim:
+            claimName: rtv-data-pvc
+        - name: models-volume
+          persistentVolumeClaim:
+            claimName: rtv-models-pvc
+        - name: monitoring-volume
+          persistentVolumeClaim:
+            claimName: rtv-monitoring-pvc
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rtv-pipeline-scheduler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rtv-pipeline-scheduler
+  template:
+    metadata:
+      labels:
+        app: rtv-pipeline-scheduler
+    spec:
+      containers:
+        - name: scheduler
+          image: rtv/pipeline:latest
+          command:
+            [
+              "python",
+              "-c",
+              "from pipeline.etl_orchestrator import create_etl_orchestrator; import asyncio; asyncio.run(create_etl_orchestrator().start_pipeline())",
+            ]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pipeline-secrets
+                  key: database-url
+            - name: MODEL_PATH
+              value: "models/production_model.pkl"
+            - name: MONITORING_DB_PATH
+              value: "monitoring/pipeline_metrics.db"
+          volumeMounts:
+            - name: data-volume
+              mountPath: /app/data
+            - name: models-volume
+              mountPath: /app/models
+            - name: monitoring-volume
+              mountPath: /app/monitoring
           resources:
             requests:
               memory: "512Mi"
@@ -151,6 +320,63 @@ spec:
             limits:
               memory: "1Gi"
               cpu: "500m"
+      volumes:
+        - name: data-volume
+          persistentVolumeClaim:
+            claimName: rtv-data-pvc
+        - name: models-volume
+          persistentVolumeClaim:
+            claimName: rtv-models-pvc
+        - name: monitoring-volume
+          persistentVolumeClaim:
+            claimName: rtv-monitoring-pvc
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rtv-pipeline-monitor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rtv-pipeline-monitor
+  template:
+    metadata:
+      labels:
+        app: rtv-pipeline-monitor
+    spec:
+      containers:
+        - name: monitor
+          image: rtv/pipeline:latest
+          command:
+            [
+              "python",
+              "-c",
+              "from monitoring.pipeline_monitor import PipelineMonitor; import asyncio; monitor = PipelineMonitor(); asyncio.run(monitor.start_monitoring())",
+            ]
+          env:
+            - name: MONITORING_DB_PATH
+              value: "monitoring/pipeline_metrics.db"
+            - name: ALERT_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: pipeline-secrets
+                  key: alert-email
+          volumeMounts:
+            - name: monitoring-volume
+              mountPath: /app/monitoring
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "200m"
+      volumes:
+        - name: monitoring-volume
+          persistentVolumeClaim:
+            claimName: rtv-monitoring-pvc
 ```
 
 ---
@@ -161,7 +387,7 @@ spec:
 
 ```bash
 # Database Configuration
-DATABASE_URL=postgresql://user:pass@localhost:5432/rtv_data
+DATABASE_URL=postgresql://user:pass@localhost:5432/rtv_pipeline
 DB_POOL_SIZE=20
 DB_MAX_OVERFLOW=30
 
@@ -169,8 +395,21 @@ DB_MAX_OVERFLOW=30
 STORAGE_PROVIDER=aws  # aws, azure, or local
 AWS_ACCESS_KEY_ID=your_access_key
 AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_BUCKET_NAME=rtv-household-data
+AWS_BUCKET_NAME=rtv-pipeline-data
 AWS_REGION=us-east-1
+
+# ML Configuration
+MODEL_PATH=models/production_model.pkl
+MIN_NEW_SAMPLES=1000
+PERFORMANCE_THRESHOLD=0.85
+FEATURE_ENGINEERING_CACHE=true
+RETRAIN_SCHEDULE="0 2 * * 0"  # Weekly on Sunday at 2 AM
+
+# Monitoring Configuration
+MONITORING_DB_PATH=monitoring/pipeline_metrics.db
+HEALTH_CHECK_INTERVAL=300  # 5 minutes
+ALERT_EMAIL=admin@yourorg.com
+ALERT_THRESHOLDS='{"pipeline_failure_rate": 0.05, "data_quality_score": 0.95, "model_accuracy": 0.90}'
 
 # Security Configuration
 SECRET_KEY=your-256-bit-secret-key
@@ -181,11 +420,66 @@ JWT_EXPIRATION_HOURS=24
 MAX_WORKERS=4
 BATCH_SIZE=1000
 VALIDATION_STRICT_MODE=true
+ASYNC_PROCESSING=true
 
-# Monitoring Configuration
-PROMETHEUS_PORT=9090
+# Logging Configuration
 LOG_LEVEL=INFO
-ALERT_EMAIL=alerts@organization.com
+LOG_FORMAT=json
+LOG_FILE=logs/pipeline.log
+```
+
+### ML Model Configuration
+
+```python
+# config/pipeline_config.py
+from dataclasses import dataclass
+from typing import Dict, Any
+
+@dataclass
+class MLConfig:
+    model_path: str = "models/production_model.pkl"
+    feature_pipeline_path: str = "models/feature_pipeline.pkl"
+    min_new_samples: int = 1000
+    performance_threshold: float = 0.85
+    retrain_schedule: str = "0 2 * * 0"  # Weekly
+    model_metrics_threshold: Dict[str, float] = None
+    auto_deploy: bool = True
+
+    def __post_init__(self):
+        if self.model_metrics_threshold is None:
+            self.model_metrics_threshold = {
+                'accuracy': 0.90,
+                'f1_score': 0.90,
+                'precision': 0.85,
+                'recall': 0.85
+            }
+
+@dataclass
+class MonitoringConfig:
+    db_path: str = "monitoring/pipeline_metrics.db"
+    health_check_interval: int = 300  # 5 minutes
+    alert_email: str = None
+    alert_thresholds: Dict[str, float] = None
+    system_metrics_enabled: bool = True
+
+    def __post_init__(self):
+        if self.alert_thresholds is None:
+            self.alert_thresholds = {
+                'pipeline_failure_rate': 0.05,
+                'data_quality_score': 0.95,
+                'model_accuracy': 0.90,
+                'cpu_usage': 0.85,
+                'memory_usage': 0.90,
+                'disk_usage': 0.85
+            }
+
+@dataclass
+class FeatureEngineeringConfig:
+    cache_enabled: bool = True
+    cache_ttl: int = 3600  # 1 hour
+    parallel_processing: bool = True
+    validation_enabled: bool = True
+    preprocessing_pipeline_path: str = "models/preprocessing_pipeline.pkl"
 ```
 
 ### Cloud Provider Setup
@@ -198,19 +492,29 @@ pip install awscli
 
 # Configure credentials
 aws configure
-# AWS Access Key ID: [your_key]
-# AWS Secret Access Key: [your_secret]
-# Default region: us-east-1
-# Default output format: json
 
-# Create S3 bucket
-aws s3 mb s3://rtv-household-data
+# Create S3 bucket for pipeline data
+aws s3 mb s3://rtv-pipeline-data
 
-# Set bucket policy for encryption
-aws s3api put-bucket-encryption \
-  --bucket rtv-household-data \
-  --server-side-encryption-configuration \
-  '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+# Set up IAM permissions for pipeline access
+aws iam create-policy --policy-name RTVPipelinePolicy --policy-document '{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::rtv-pipeline-data",
+        "arn:aws:s3:::rtv-pipeline-data/*"
+      ]
+    }
+  ]
+}'
 ```
 
 #### Azure Configuration
@@ -227,294 +531,325 @@ az group create --name rtv-pipeline --location eastus
 
 # Create storage account
 az storage account create \
-  --name rtvhouseholddata \
+  --name rtvpipelinestorage \
   --resource-group rtv-pipeline \
   --location eastus \
   --sku Standard_LRS
 
-# Get storage keys
-az storage account keys list \
-  --account-name rtvhouseholddata \
-  --resource-group rtv-pipeline
+# Create container for pipeline data
+az storage container create \
+  --name pipeline-data \
+  --account-name rtvpipelinestorage
 ```
 
 ---
 
 ## 📊 Monitoring Setup
 
-### Prometheus Configuration
+### Health Checks
 
-```yaml
-# prometheus.yml
-global:
-  scrape_interval: 15s
+```bash
+# System health endpoint
+curl http://localhost:8000/health
 
-scrape_configs:
-  - job_name: "rtv-pipeline"
-    static_configs:
-      - targets: ["localhost:8000"]
-    metrics_path: "/metrics"
-    scrape_interval: 5s
-
-  - job_name: "postgres"
-    static_configs:
-      - targets: ["localhost:9187"]
-
-rule_files:
-  - "pipeline_alerts.yml"
-
-alerting:
-  alertmanagers:
-    - static_configs:
-        - targets:
-            - alertmanager:9093
-```
-
-### Grafana Dashboard
-
-```json
+# Expected response:
 {
-  "dashboard": {
-    "title": "RTV Pipeline Monitoring",
-    "panels": [
-      {
-        "title": "Pipeline Success Rate",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "rate(pipeline_success_total[5m]) / rate(pipeline_total[5m]) * 100"
-          }
-        ]
-      },
-      {
-        "title": "Processing Volume",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "rate(records_processed_total[5m])"
-          }
-        ]
-      }
-    ]
+  "status": "healthy",
+  "health_score": 0.96,
+  "timestamp": "2024-12-15T10:30:00Z",
+  "components": {
+    "database": "healthy",
+    "storage": "healthy",
+    "model_service": "healthy",
+    "feature_engineering": "healthy",
+    "monitoring": "healthy"
   }
 }
+
+# Readiness check
+curl http://localhost:8000/ready
+
+# Pipeline status
+curl http://localhost:8000/pipeline/status
 ```
 
-### Alert Rules
+### Monitoring Database
 
-```yaml
-# pipeline_alerts.yml
-groups:
-  - name: pipeline_alerts
-    rules:
-      - alert: PipelineFailureRate
-        expr: rate(pipeline_failures_total[5m]) / rate(pipeline_total[5m]) > 0.05
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Pipeline failure rate is {{ $value | humanizePercentage }}"
+```bash
+# Check monitoring database
+sqlite3 monitoring/pipeline_metrics.db
 
-      - alert: HighAPILatency
-        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "95th percentile latency is {{ $value }}s"
+# View recent pipeline runs
+.tables
+SELECT * FROM pipeline_runs ORDER BY start_time DESC LIMIT 5;
+
+# View data quality metrics
+SELECT * FROM data_quality_metrics ORDER BY timestamp DESC LIMIT 10;
+
+# View model performance
+SELECT * FROM model_performance_metrics ORDER BY timestamp DESC LIMIT 10;
+
+# View system metrics
+SELECT * FROM system_metrics ORDER BY timestamp DESC LIMIT 10;
+
+# View active alerts
+SELECT * FROM alerts WHERE resolved = FALSE;
+```
+
+### Alerting Configuration
+
+```python
+# monitoring/alert_config.py
+ALERT_RULES = {
+    'pipeline_failure': {
+        'condition': 'failure_rate > 0.05',
+        'severity': 'ERROR',
+        'notification_channels': ['email', 'slack']
+    },
+    'data_quality_degradation': {
+        'condition': 'quality_score < 0.95',
+        'severity': 'WARNING',
+        'notification_channels': ['email']
+    },
+    'model_performance_degradation': {
+        'condition': 'accuracy < 0.90',
+        'severity': 'ERROR',
+        'notification_channels': ['email', 'slack']
+    },
+    'high_resource_usage': {
+        'condition': 'cpu_usage > 0.85 OR memory_usage > 0.90',
+        'severity': 'WARNING',
+        'notification_channels': ['email']
+    }
+}
+
+EMAIL_CONFIG = {
+    'smtp_server': 'smtp.gmail.com',
+    'smtp_port': 587,
+    'username': 'alerts@yourorg.com',
+    'password': 'your_password',
+    'recipients': ['admin@yourorg.com', 'data-team@yourorg.com']
+}
 ```
 
 ---
 
-## 🧪 Testing & Validation
+## 🧪 Testing Deployment
 
 ### Unit Tests
 
 ```bash
 # Run all tests
-python -m pytest tests/ -v
+pytest tests/ -v --cov=src --cov-report=html
 
-# Run specific test categories
-python -m pytest tests/unit/ -v
-python -m pytest tests/integration/ -v
+# Run specific component tests
+pytest tests/test_feature_engineer.py -v
+pytest tests/test_model_trainer.py -v
+pytest tests/test_pipeline_monitor.py -v
 
-# Run with coverage
-python -m pytest tests/ --cov=. --cov-report=html
+# Expected coverage targets:
+# Feature Engineering: 95%+
+# Model Training: 95%+
+# Pipeline Monitoring: 90%+
+# Data Validation: 95%+
+# Storage Operations: 90%+
 ```
 
-### Integration Testing
+### Integration Tests
 
 ```bash
-# Test database connection
-python -c "
-from storage.storage_manager import StorageManager
-manager = StorageManager()
-print('✓ Database connection successful')
-"
+# Run integration tests
+pytest tests/integration/ -v --slow
 
-# Test storage backend
-python -c "
-from storage.storage_manager import StorageManager
-import pandas as pd
-manager = StorageManager()
-df = pd.DataFrame({'test': [1, 2, 3]})
-path = manager.save_data(df, 'test_data', 'raw')
-print(f'✓ Storage test successful: {path}')
-"
-
-# Test API endpoints
-curl -X POST http://localhost:8000/api/v1/upload/survey-data \
-  -H "Content-Type: application/json" \
-  -d '{"household_id": "test_001", "region": 1, "ppi_score": 50}'
+# Test scenarios include:
+# - End-to-end pipeline execution
+# - ML model training and inference
+# - Monitoring and alerting
+# - Storage operations across providers
+# - Error handling and recovery
 ```
 
 ### Load Testing
 
-```python
-# locustfile.py
-from locust import HttpUser, task, between
+```bash
+# Install locust
+pip install locust
 
-class PipelineUser(HttpUser):
-    wait_time = between(1, 3)
+# Run load tests
+locust -f tests/load_test.py --host=http://localhost:8000
 
-    @task
-    def submit_survey_data(self):
-        self.client.post("/api/v1/upload/survey-data", json={
-            "household_id": f"test_{self.user_id}",
-            "region": 1,
-            "ppi_score": 50,
-            "household_size": 5
-        })
+# Performance targets:
+# - 1000 concurrent users
+# - 800+ records/minute throughput
+# - < 5 second response time
+# - < 0.1% error rate
+# - ML inference: < 100ms per record
+```
 
-    @task
-    def check_status(self):
-        self.client.get("/api/v1/status/test_ingestion_id")
+### Smoke Tests
+
+```bash
+# Quick deployment validation
+python tests/smoke_test.py
+
+# This will:
+# 1. Check all service endpoints
+# 2. Validate database connections
+# 3. Test storage connectivity
+# 4. Verify ML model loading
+# 5. Check monitoring system
+# 6. Validate feature engineering pipeline
 ```
 
 ---
 
-## 🔒 Security Checklist
+## 🔧 Troubleshooting
 
-### Pre-deployment Security
+### Common Deployment Issues
 
-- [ ] **Encryption Keys**: Generate and securely store Fernet encryption keys
-- [ ] **Database Credentials**: Use strong passwords and connection pooling
-- [ ] **API Authentication**: Implement JWT token authentication
-- [ ] **Network Security**: Configure firewalls and VPCs
-- [ ] **SSL/TLS**: Enable HTTPS for all endpoints
-- [ ] **Input Validation**: Verify all Pydantic models are properly configured
-- [ ] **Rate Limiting**: Configure API rate limits
-- [ ] **Audit Logging**: Enable comprehensive audit trails
-
-### Post-deployment Security
-
-- [ ] **Regular Updates**: Keep dependencies updated
-- [ ] **Security Scanning**: Run vulnerability scans
-- [ ] **Access Reviews**: Regular access control audits
-- [ ] **Backup Encryption**: Verify backup encryption
-- [ ] **Incident Response**: Test incident response procedures
-
----
-
-## 🚨 Troubleshooting
-
-### Common Issues
-
-#### Database Connection Errors
+#### 1. Model Loading Failures
 
 ```bash
-# Check database status
-pg_isready -h localhost -p 5432
+# Check model files exist
+ls -la models/
+# Should contain: vulnerability_model.pkl, feature_pipeline.pkl
 
-# Test connection
+# Test model loading
 python -c "
-import psycopg2
-conn = psycopg2.connect('postgresql://user:pass@localhost:5432/rtv_data')
-print('✓ Database connection successful')
-conn.close()
+from pipeline.model_trainer import ModelTrainer
+trainer = ModelTrainer()
+info = trainer.get_model_info()
+print('Model status:', info['status'])
+print('Model accuracy:', info.get('accuracy', 'N/A'))
+"
+
+# If models missing, copy from Part A
+cp ../part_a_predictive_modeling/models/* models/
+```
+
+#### 2. Monitoring Database Issues
+
+```bash
+# Check monitoring database exists and is accessible
+ls -la monitoring/
+sqlite3 monitoring/pipeline_metrics.db ".tables"
+
+# Reinitialize if corrupted
+python -c "
+from monitoring.pipeline_monitor import PipelineMonitor
+import asyncio
+monitor = PipelineMonitor()
+asyncio.run(monitor.initialize())
+print('Monitoring database reinitialized')
 "
 ```
 
-#### Storage Backend Issues
+#### 3. Feature Engineering Failures
 
 ```bash
-# Test AWS connection
-aws s3 ls s3://rtv-household-data
+# Test feature engineering
+python -c "
+from pipeline.feature_engineer import FeatureEngineer
+import pandas as pd
 
-# Test Azure connection
-az storage blob list --account-name rtvhouseholddata --container-name data
+# Create sample data
+sample_data = pd.DataFrame({
+    'household_size': [5],
+    'total_income': [25000],
+    'has_electricity': [1],
+    'district': ['Kitgum']
+})
+
+engineer = FeatureEngineer()
+try:
+    result = engineer.transform_data(sample_data)
+    print('Feature engineering: OK')
+    print(f'Features generated: {len(result.columns)}')
+except Exception as e:
+    print(f'Feature engineering failed: {e}')
+"
 ```
 
-#### Memory Issues
+#### 4. High Memory Usage
 
 ```bash
 # Monitor memory usage
-python -c "
-import psutil
-print(f'Memory usage: {psutil.virtual_memory().percent}%')
-print(f'Available: {psutil.virtual_memory().available / (1024**3):.1f}GB')
-"
+htop  # or top
 
-# Optimize batch sizes in configuration
-# Reduce MAX_WORKERS if memory constrained
+# Optimize for production
+export PYTHONHASHSEED=0
+export OMP_NUM_THREADS=4
+export OPENBLAS_NUM_THREADS=4
+
+# Reduce batch sizes if needed
+# In config/pipeline_config.py:
+# config.processing.batch_size = 500  # Reduce from 1000
 ```
 
-#### API Performance Issues
+#### 5. Storage Connection Issues
 
 ```bash
-# Check API health
-curl http://localhost:8000/health
+# Test storage connectivity
+python -c "
+from storage.storage_manager import StorageManager
+import asyncio
+import pandas as pd
 
-# Monitor response times
-curl -w "@curl-format.txt" -o /dev/null -s http://localhost:8000/api/v1/status/test
-```
+async def test_storage():
+    storage = StorageManager()
+    try:
+        # Test basic operations
+        test_data = pd.DataFrame({'test': [1, 2, 3]})
+        await storage.store_data(test_data, 'test/connectivity.parquet')
+        retrieved = await storage.retrieve_data('test/connectivity.parquet')
+        print('Storage connectivity: OK')
+    except Exception as e:
+        print(f'Storage connectivity failed: {e}')
 
-### Performance Tuning
-
-#### Database Optimization
-
-```sql
--- Create indexes for common queries
-CREATE INDEX idx_household_region ON household_data(region);
-CREATE INDEX idx_processing_status ON ingestion_log(processing_status);
-CREATE INDEX idx_created_at ON ingestion_log(created_at);
-
--- Analyze query performance
-EXPLAIN ANALYZE SELECT * FROM household_data WHERE region = 1;
-```
-
-#### Storage Optimization
-
-```python
-# Use Parquet for better compression
-df.to_parquet('data.parquet', compression='snappy')
-
-# Implement data partitioning by date
-partition_path = f"year={year}/month={month}/day={day}/data.parquet"
+asyncio.run(test_storage())
+"
 ```
 
 ---
 
-## 📈 Scaling Guidelines
+## 📈 Performance Optimization
 
-### Horizontal Scaling
+### Production Tuning
 
-- **API Instances**: Scale to 3-5 instances behind load balancer
-- **Worker Processes**: Scale Celery workers based on queue length
-- **Database**: Use read replicas for query scaling
-- **Storage**: Implement data partitioning strategies
+```python
+# config/performance_config.py
+PERFORMANCE_CONFIG = {
+    # Database optimizations
+    'db_pool_size': 20,
+    'db_pool_timeout': 30,
+    'db_pool_recycle': 3600,
 
-### Vertical Scaling
+    # Feature engineering optimizations
+    'feature_batch_size': 1000,
+    'feature_parallel_workers': 4,
+    'feature_cache_size': 10000,
 
-- **CPU**: 4-8 cores for processing-intensive workloads
-- **Memory**: 16-32GB for large batch processing
-- **Storage**: NVMe SSDs for database performance
-- **Network**: High-bandwidth connections for cloud storage
+    # Model inference optimizations
+    'model_batch_prediction': True,
+    'model_prediction_batch_size': 500,
+    'model_cache_predictions': True,
 
-### Auto-scaling Configuration
+    # Monitoring optimizations
+    'monitoring_batch_size': 100,
+    'monitoring_flush_interval': 60,
+    'monitoring_retention_days': 90,
+
+    # Storage optimizations
+    'storage_upload_threads': 8,
+    'storage_download_threads': 4,
+    'storage_compression': 'gzip'
+}
+```
+
+### Scaling Configuration
 
 ```yaml
-# kubernetes/hpa.yaml
+# kubernetes/hpa.yaml - Horizontal Pod Autoscaler
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -543,142 +878,48 @@ spec:
 
 ---
 
-## 🔄 Maintenance Procedures
+## ✅ Production Readiness Checklist
 
-### Daily Maintenance
+### Pre-deployment
 
-```bash
-#!/bin/bash
-# daily_maintenance.sh
+- [ ] **Environment Setup**: All dependencies installed and configured
+- [ ] **Database Setup**: PostgreSQL and SQLite databases initialized
+- [ ] **Model Preparation**: ML models from Part A available and tested
+- [ ] **Storage Configuration**: Cloud storage or local storage configured
+- [ ] **Monitoring Setup**: Monitoring database and alerts configured
+- [ ] **Security Setup**: Encryption keys and access controls in place
+- [ ] **Testing**: All tests passing (unit, integration, load)
 
-# Check pipeline health
-python -c "from pipeline.etl_orchestrator import HealthChecker; HealthChecker().check_all()"
+### Deployment
 
-# Clean temporary files
-find temp/ -name "*.tmp" -mtime +1 -delete
+- [ ] **Docker Images**: Built and tagged for production
+- [ ] **Kubernetes Config**: Deployments, services, and ingress configured
+- [ ] **Environment Variables**: All production variables set
+- [ ] **Secrets Management**: Database passwords and API keys secured
+- [ ] **Volume Mounts**: Persistent storage for data, models, monitoring
+- [ ] **Resource Limits**: CPU and memory limits appropriate for workload
+- [ ] **Health Checks**: Liveness and readiness probes configured
 
-# Backup configuration
-cp config/pipeline_config.py backups/config_$(date +%Y%m%d).py
+### Post-deployment
 
-# Check disk space
-df -h | grep -E "(80%|90%|100%)" && echo "WARNING: Low disk space"
-```
+- [ ] **Health Verification**: All health checks passing
+- [ ] **Feature Engineering**: 50+ features processing correctly
+- [ ] **Model Performance**: 97.9% accuracy maintained
+- [ ] **Monitoring Active**: Real-time metrics collection working
+- [ ] **Alerting Working**: Test alerts sent successfully
+- [ ] **Performance Baseline**: Throughput and latency benchmarks established
+- [ ] **Scaling Tests**: Auto-scaling working under load
+- [ ] **Backup Procedures**: Data and model backup processes verified
 
-### Weekly Maintenance
+### Operational
 
-```bash
-#!/bin/bash
-# weekly_maintenance.sh
-
-# Archive old logs
-find logs/ -name "*.log" -mtime +7 -exec gzip {} \;
-
-# Update model performance metrics
-python -c "from pipeline.etl_orchestrator import ModelMonitor; ModelMonitor().generate_weekly_report()"
-
-# Database maintenance
-psql -d rtv_household_data -c "VACUUM ANALYZE;"
-
-# Security scan
-pip-audit --desc --output audit_$(date +%Y%m%d).json
-```
-
-### Monthly Maintenance
-
-```bash
-#!/bin/bash
-# monthly_maintenance.sh
-
-# Full database backup
-pg_dump rtv_household_data > backups/db_backup_$(date +%Y%m%d).sql
-
-# Archive processed data
-python -c "from storage.storage_manager import DataArchiver; DataArchiver().archive_monthly_data()"
-
-# Update dependencies
-pip list --outdated > outdated_packages_$(date +%Y%m%d).txt
-
-# Capacity planning review
-python -c "from monitoring.capacity_planner import CapacityPlanner; CapacityPlanner().generate_monthly_report()"
-```
+- [ ] **Monitoring Dashboard**: Team has access to health dashboard
+- [ ] **Alert Procedures**: On-call procedures established
+- [ ] **Documentation**: Deployment and operational docs complete
+- [ ] **Training**: Team trained on monitoring and troubleshooting
+- [ ] **Runbooks**: Standard operating procedures documented
+- [ ] **Disaster Recovery**: Backup and recovery procedures tested
 
 ---
 
-## 📞 Support & Contacts
-
-### Support Tiers
-
-#### Tier 1: Self-Service
-
-- **Documentation**: This deployment guide and architecture docs
-- **Health Checks**: Built-in monitoring dashboards
-- **Common Issues**: Troubleshooting section above
-
-#### Tier 2: Remote Support
-
-- **Response Time**: 4 hours during business hours
-- **Coverage**: Configuration issues, performance tuning
-- **Contact**: pipeline-support@organization.com
-
-#### Tier 3: Critical Issues
-
-- **Response Time**: 1 hour, 24/7
-- **Coverage**: Production outages, data loss incidents
-- **Contact**: critical-support@organization.com
-
-### Emergency Procedures
-
-```bash
-# Pipeline emergency stop
-python -c "from pipeline.etl_orchestrator import EmergencyStop; EmergencyStop().halt_all_processing()"
-
-# Rollback to previous model version
-python -c "from pipeline.model_manager import ModelManager; ModelManager().rollback_to_previous()"
-
-# Database emergency readonly mode
-psql -d rtv_household_data -c "ALTER DATABASE rtv_household_data SET default_transaction_read_only = on;"
-```
-
----
-
-## ✅ Deployment Verification
-
-### Post-deployment Checklist
-
-- [ ] **Services Running**: All containers/services are healthy
-- [ ] **Database Connected**: Connection pool is active
-- [ ] **Storage Accessible**: Can read/write to configured storage
-- [ ] **API Responsive**: All endpoints return expected responses
-- [ ] **Authentication Working**: JWT tokens are validated
-- [ ] **Monitoring Active**: Metrics are being collected
-- [ ] **Alerts Configured**: Test alerts are sent successfully
-- [ ] **Backups Configured**: Automated backups are running
-- [ ] **SSL Certificates**: HTTPS is working properly
-- [ ] **Performance Baseline**: Response times meet SLA
-
-### Validation Tests
-
-```bash
-# Run comprehensive validation
-python scripts/validate_deployment.py
-
-# Expected output:
-# ✓ Database connection: PASS
-# ✓ Storage backend: PASS
-# ✓ API endpoints: PASS
-# ✓ Authentication: PASS
-# ✓ Monitoring: PASS
-# ✓ Model loading: PASS
-# ✓ End-to-end pipeline: PASS
-#
-# Deployment Status: READY FOR PRODUCTION
-```
-
----
-
-**Deployment Guide Complete**  
-**Version**: 1.0  
-**Last Updated**: December 2024  
-**Status**: Ready for Production Deployment
-
-For technical support or questions about this deployment guide, contact the development team or refer to the troubleshooting section above.
+The deployment guide provides comprehensive instructions for deploying the complete ETL pipeline with integrated ML capabilities, monitoring, and production-ready architecture. The pipeline is ready for enterprise-scale deployment and can handle household vulnerability assessment operations in production environments.
