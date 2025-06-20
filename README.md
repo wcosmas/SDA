@@ -6,20 +6,20 @@ This repository contains a **complete end-to-end solution** for household vulner
 
 ## 🏗️ System Architecture Overview
 
-### 📱 Field Operations Layer
+### 🤖 Machine Learning Platform
 
-- **👤 Field Officer** → **📱 WorkMate Mobile App** → **🧠 Local ML Engine** → **💾 Local SQLite**
-- Offline-capable data collection and real-time vulnerability assessment
+- **🏋️ Model Training** → **🔧 Feature Engineering** → **📊 Model Evaluation** → **🤖 Vulnerability Model**
+- Continuous model improvement and deployment
 
 ### 🔄 Data Engineering Pipeline
 
 - **📥 Data Ingestion** → **✅ Data Validator** → **🗄️ Storage Manager** → **🔄 ETL Orchestrator**
 - Automated data processing with quality assurance
 
-### 🤖 Machine Learning Platform
+### 📱 Field Operations Layer
 
-- **🏋️ Model Training** → **🔧 Feature Engineering** → **📊 Model Evaluation** → **🤖 Vulnerability Model**
-- Continuous model improvement and deployment
+- **👤 Field Officer** → **📱 WorkMate Mobile App** → **🧠 Local ML Engine** → **💾 Local SQLite**
+- Offline-capable data collection and real-time vulnerability assessment
 
 ### ☁️ Cloud Infrastructure
 
