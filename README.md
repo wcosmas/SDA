@@ -1,13 +1,5 @@
 # RTV Senior Data Scientist Technical Assessment
 
-**Complete End-to-End Solution for Household Vulnerability Assessment**
-
-[![Assessment Status](https://img.shields.io/badge/Status-Complete-brightgreen)](https://github.com)
-[![Parts Completed](https://img.shields.io/badge/Parts-3%2F3-blue)](https://github.com)
-[![Total Points](https://img.shields.io/badge/Points-60%2F60-gold)](https://github.com)
-
----
-
 ## 🎯 Project Overview
 
 This repository contains a **complete end-to-end solution** for household vulnerability assessment in last-mile communities, developed for **Raising The Village (RTV)**. The solution encompasses machine learning, data engineering, and mobile application integration to enable evidence-based decision making for field officers operating in resource-constrained environments.
