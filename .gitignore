@@ -266,6 +266,10 @@ $RECYCLE.BIN/
 !PART_C_COMPLETE_SUMMARY.md
 !README.md
 
+# Keep Cursor IDE configuration
+!.cursor/
+!.cursor/**
+
 # Keep requirements files
 !requirements.txt
 !**/requirements.txt
