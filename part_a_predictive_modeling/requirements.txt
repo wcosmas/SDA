@@ -12,3 +12,6 @@ xgboost>=1.6.0
 lightgbm>=3.3.0
 shap>=0.41.0
 optuna>=3.0.0 
+dvc
+dagshub
+mlflow
