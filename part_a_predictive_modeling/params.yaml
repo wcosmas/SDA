@@ -1,0 +1,53 @@
+# Model hyperparameters for household vulnerability prediction
+
+# General parameters
+random_state: 42
+test_size: 0.2
+cv_folds: 5
+
+# Logistic Regression parameters
+logistic_regression:
+  max_iter: 1000
+  C: 1.0
+  penalty: "l2"
+  solver: "liblinear"
+
+# Random Forest parameters
+random_forest:
+  n_estimators: 100
+  max_depth: null
+  min_samples_split: 2
+  min_samples_leaf: 1
+  max_features: "sqrt"
+  bootstrap: true
+
+# Gradient Boosting parameters
+gradient_boosting:
+  n_estimators: 100
+  learning_rate: 0.1
+  max_depth: 3
+  min_samples_split: 2
+  min_samples_leaf: 1
+  subsample: 1.0
+
+# SVM parameters
+svm:
+  C: 1.0
+  kernel: "rbf"
+  gamma: "scale"
+  probability: true
+
+# Feature engineering parameters
+feature_engineering:
+  income_per_capita: true
+  agric_productivity: true
+  household_size_categories: true
+  asset_ownership_score: true
+  infrastructure_score: true
+
+# Preprocessing parameters
+preprocessing:
+  numeric_imputation: "median"
+  categorical_imputation: "constant"
+  categorical_fill_value: "missing"
+  scaling: "standard"

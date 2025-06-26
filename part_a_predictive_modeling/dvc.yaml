@@ -1,0 +1,90 @@
+stages:
+  data_exploration:
+    cmd: python 01_data_exploration.py
+    deps:
+      - 01_data_exploration.py
+      - ../DataScientist_01_Assessment.csv
+      - ../Dictionary.xlsx
+    outs:
+      - column_information.csv
+
+  target_variable_creation:
+    cmd: python 02_target_variable_creation.py
+    deps:
+      - 02_target_variable_creation.py
+      - ../DataScientist_01_Assessment.csv
+    outs:
+      - data_with_proper_progress_status.csv
+      - progress_status_summary.csv
+      - progress_status_analysis.png
+
+  comprehensive_eda:
+    cmd: python 03_comprehensive_eda.py
+    deps:
+      - 03_comprehensive_eda.py
+      - data_with_proper_progress_status.csv
+    outs:
+      - feature_correlation_analysis.csv
+      - district_vulnerability_analysis.csv
+      - comprehensive_eda_analysis.png
+
+  ml_modeling:
+    cmd: python 04_ml_modeling.py
+    deps:
+      - 04_ml_modeling.py
+      - data_with_proper_progress_status.csv
+    params:
+      - random_state
+      - test_size
+      - cv_folds
+    outs:
+      - best_vulnerability_model.pkl
+      - model_features_info.csv
+      - feature_importance_analysis.csv
+      - model_evaluation_summary.png
+
+  model_evaluation:
+    cmd: python 05_model_evaluation_and_insights.py
+    deps:
+      - 05_model_evaluation_and_insights.py
+      - best_vulnerability_model.pkl
+      - model_features_info.csv
+      - feature_importance_analysis.csv
+      - data_with_proper_progress_status.csv
+    outs:
+      - final_household_predictions.csv
+      - final_vulnerability_assessment.png
+
+plots:
+  - model_evaluation_summary.png:
+      title: "Model Performance Comparison"
+      x_label: "Models"
+      y_label: "Performance Metrics"
+
+  - feature_importance_analysis.csv:
+      title: "Feature Importance Analysis"
+      template: linear
+      x: Feature
+      y: Importance
+
+  - comprehensive_eda_analysis.png:
+      title: "Comprehensive Exploratory Data Analysis"
+
+  - final_vulnerability_assessment.png:
+      title: "Final Vulnerability Assessment"
+
+artifacts:
+  model:
+    path: best_vulnerability_model.pkl
+    type: model
+    desc: "Best performing household vulnerability prediction model"
+
+  predictions:
+    path: final_household_predictions.csv
+    type: table
+    desc: "Final household vulnerability predictions"
+
+  feature_importance:
+    path: feature_importance_analysis.csv
+    type: table
+    desc: "Feature importance rankings from the best model"

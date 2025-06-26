@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <title>DVC Plot</title>
+    
+
+    <script src="https://cdn.jsdelivr.net/npm/vega@5.20.2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.2.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.18.2"></script>
+    
+    <style>
+        table {
+            border-spacing: 15px;
+        }
+    </style>
+</head>
+<body>
+    
+    <div id = "feature_importance_analysis_csv">
+        <script type = "text/javascript">
+            var spec = {"$schema": "https://vega.github.io/schema/vega-lite/v5.json", "data": {"values": [{"Feature": "AgricValue", "Importance": "0.2624924829972485", "rev": "workspace"}, {"Feature": "HouseholdIcome", "Importance": "0.23823889804786957", "rev": "workspace"}, {"Feature": "income_per_capita", "Importance": "0.0839063193053392", "rev": "workspace"}, {"Feature": "PerenialCropIncome", "Importance": "0.04348336062284096", "rev": "workspace"}, {"Feature": "agric_productivity", "Importance": "0.03755363970765321", "rev": "workspace"}, {"Feature": "PersonalBusinessAndSelfEmployment", "Importance": "0.03026178923336638", "rev": "workspace"}, {"Feature": "SeasonalCropIncome", "Importance": "0.029975353614922456", "rev": "workspace"}, {"Feature": "CasualLabour", "Importance": "0.022470823492896315", "rev": "workspace"}, {"Feature": "AgricultureLand", "Importance": "0.01788013095057045", "rev": "workspace"}, {"Feature": "PerennialCropsGrown", "Importance": "0.015998760536107794", "rev": "workspace"}, {"Feature": "HouseholdSize", "Importance": "0.015043236993948881", "rev": "workspace"}, {"Feature": "Assets.1", "Importance": "0.012218124173389801", "rev": "workspace"}, {"Feature": "FormalEmployment", "Importance": "0.012107701986285049", "rev": "workspace"}, {"Feature": "Season2CropsPlanted", "Importance": "0.011929468959657229", "rev": "workspace"}, {"Feature": "RemittancesAndGifts", "Importance": "0.01156229192506195", "rev": "workspace"}, {"Feature": "TimeToOPD", "Importance": "0.010941654185035279", "rev": "workspace"}, {"Feature": "Season1CropsPlanted", "Importance": "0.010721068540336373", "rev": "workspace"}, {"Feature": "District_Kanungu", "Importance": "0.010321240590199272", "rev": "workspace"}, {"Feature": "work_salaried", "Importance": "0.00935743018710099", "rev": "workspace"}, {"Feature": "TimeToWater", "Importance": "0.009216511371870727", "rev": "workspace"}, {"Feature": "LivestockIncome", "Importance": "0.008658867437919347", "rev": "workspace"}, {"Feature": "household_size_category_Small", "Importance": "0.005888402589366696", "rev": "workspace"}, {"Feature": "VegetableIncome", "Importance": "0.005288384760152573", "rev": "workspace"}, {"Feature": "asset_ownership_score", "Importance": "0.005056913191921104", "rev": "workspace"}, {"Feature": "Season1VegetableIncome", "Importance": "0.0049335520956680905", "rev": "workspace"}, {"Feature": "infrastructure_score", "Importance": "0.004641750160805366", "rev": "workspace"}, {"Feature": "phones_owned", "Importance": "0.004638840380407251", "rev": "workspace"}, {"Feature": "Season2VegatableIncome", "Importance": "0.004084083689856291", "rev": "workspace"}, {"Feature": "Material_walls_1", "Importance": "0.003336227667998199", "rev": "workspace"}, {"Feature": "District_Mitooma", "Importance": "0.0032653504489320094", "rev": "workspace"}, {"Feature": "household_size_category_Large", "Importance": "0.0031278855818943027", "rev": "workspace"}, {"Feature": "household_fertilizer", "Importance": "0.002838640265177195", "rev": "workspace"}, {"Feature": "household_size_category_Medium", "Importance": "0.002722419073081593", "rev": "workspace"}, {"Feature": "District_Rukungiri", "Importance": "0.00267420372229016", "rev": "workspace"}, {"Feature": "RentIncome", "Importance": "0.002496804474913578", "rev": "workspace"}, {"Feature": "work_casual", "Importance": "0.0024445554280762513", "rev": "workspace"}, {"Feature": "Material_walls_2", "Importance": "0.0023184707745741375", "rev": "workspace"}, {"Feature": "save_mode_7", "Importance": "0.0022739780618550626", "rev": "workspace"}, {"Feature": "tippy_tap_available", "Importance": "0.002185769848791589", "rev": "workspace"}, {"Feature": "hhh_sex_2", "Importance": "0.002180467075270428", "rev": "workspace"}, {"Feature": "District_Rubanda", "Importance": "0.0021118492544834194", "rev": "workspace"}, {"Feature": "dish_rack_present", "Importance": "0.0020517101408285645", "rev": "workspace"}, {"Feature": "perennial_cropping", "Importance": "0.002030118590279337", "rev": "workspace"}, {"Feature": "household_size_category_Very Large", "Importance": "0.0019837703382912745", "rev": "workspace"}, {"Feature": "hhh_read_write_1", "Importance": "0.001935086001312318", "rev": "workspace"}, {"Feature": "radios_owned", "Importance": "0.0018855740199735583", "rev": "workspace"}, {"Feature": "postharvest_food_storage", "Importance": "0.001818722380184452", "rev": "workspace"}, {"Feature": "hhh_read_write_0", "Importance": "0.0018126071034592407", "rev": "workspace"}, {"Feature": "bathroom_constructed", "Importance": "0.0018080963283864037", "rev": "workspace"}, {"Feature": "non_bio_waste_mgt_present", "Importance": "0.0017725076506137363", "rev": "workspace"}, {"Feature": "standard_hangline", "Importance": "0.0017310160517153038", "rev": "workspace"}, {"Feature": "swept_compound", "Importance": "0.0016171227172068598", "rev": "workspace"}, {"Feature": "apply_liquid_manure", "Importance": "0.0015443969117259326", "rev": "workspace"}, {"Feature": "kitchen_house", "Importance": "0.0014166119956730322", "rev": "workspace"}, {"Feature": "hhh_sex_1", "Importance": "0.0014095973893722316", "rev": "workspace"}, {"Feature": "soap_ash_available", "Importance": "0.0013033158679323087", "rev": "workspace"}, {"Feature": "latrine_constructed", "Importance": "0.0007416337040134936", "rev": "workspace"}, {"Feature": "soil_management", "Importance": "0.0002904094038969246", "rev": "workspace"}, {"Feature": "water_control_practise", "Importance": "0.0", "rev": "workspace"}]}, "title": {"text": "Feature Importance Analysis", "anchor": "middle"}, "width": 300, "height": 300, "params": [{"name": "smooth", "value": 0.001, "bind": {"input": "range", "min": 0.001, "max": 1, "step": 0.001}}], "encoding": {"x": {"field": "Feature", "type": "quantitative", "title": "Feature"}, "color": {"field": "rev", "scale": {"domain": ["workspace"], "range": ["#945dd6"]}}, "strokeDash": {}}, "layer": [{"layer": [{"params": [{"name": "grid", "select": "interval", "bind": "scales"}], "mark": "line"}, {"transform": [{"filter": {"param": "hover", "empty": false}}], "mark": "point"}], "encoding": {"y": {"field": "Importance", "type": "quantitative", "title": "Importance", "scale": {"zero": false}}, "color": {"field": "rev", "type": "nominal"}}, "transform": [{"loess": "Importance", "on": "Feature", "groupby": ["rev"], "bandwidth": {"signal": "smooth"}}]}, {"mark": {"type": "line", "opacity": 0.2}, "encoding": {"x": {"field": "Feature", "type": "quantitative", "title": "Feature"}, "y": {"field": "Importance", "type": "quantitative", "title": "Importance", "scale": {"zero": false}}, "color": {"field": "rev", "type": "nominal"}}}, {"mark": {"type": "circle", "size": 10}, "encoding": {"x": {"aggregate": "max", "field": "Feature", "type": "quantitative", "title": "Feature"}, "y": {"aggregate": {"argmax": "Feature"}, "field": "Importance", "type": "quantitative", "title": "Importance", "scale": {"zero": false}}, "color": {"field": "rev", "type": "nominal"}}}, {"transform": [{"calculate": "datum.rev", "as": "pivot_field"}, {"pivot": "pivot_field", "op": "mean", "value": "Importance", "groupby": ["Feature"]}], "mark": {"type": "rule", "tooltip": {"content": "data"}, "stroke": "grey"}, "encoding": {"opacity": {"condition": {"value": 0.3, "param": "hover", "empty": false}, "value": 0}}, "params": [{"name": "hover", "select": {"type": "point", "fields": ["Feature"], "nearest": true, "on": "mouseover", "clear": "mouseout"}}]}]};
+            vegaEmbed('#feature_importance_analysis_csv', spec);
+        </script>
+    </div>
+    
+
+        <div
+            id="comprehensive_eda_analysis_png"
+            style="border:1px solid black;text-align:center;
+            white-space: nowrap;overflow-y:hidden;">
+            <p>comprehensive_eda_analysis.png</p>
+
+                <div
+                    style="border:1px dotted black;margin:2px;display:
+                    inline-block;
+                    overflow:hidden;margin-left:8px;">
+                    <p>workspace</p>
+                    <img src="static/workspace_comprehensive_eda_analysis.png">
+                </div>
+                
+        </div>
+
+        <div
+            id="final_vulnerability_assessment_png"
+            style="border:1px solid black;text-align:center;
+            white-space: nowrap;overflow-y:hidden;">
+            <p>final_vulnerability_assessment.png</p>
+
+                <div
+                    style="border:1px dotted black;margin:2px;display:
+                    inline-block;
+                    overflow:hidden;margin-left:8px;">
+                    <p>workspace</p>
+                    <img src="static/workspace_final_vulnerability_assessment.png">
+                </div>
+                
+        </div>
+
+        <div
+            id="model_evaluation_summary_png"
+            style="border:1px solid black;text-align:center;
+            white-space: nowrap;overflow-y:hidden;">
+            <p>model_evaluation_summary.png</p>
+
+                <div
+                    style="border:1px dotted black;margin:2px;display:
+                    inline-block;
+                    overflow:hidden;margin-left:8px;">
+                    <p>workspace</p>
+                    <img src="static/workspace_model_evaluation_summary.png">
+                </div>
+                
+        </div>
+</body>
+</html>

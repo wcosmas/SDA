@@ -1,0 +1,135 @@
+schema: '2.0'
+stages:
+  data_exploration:
+    cmd: python 01_data_exploration.py
+    deps:
+    - path: ../DataScientist_01_Assessment.csv
+      hash: md5
+      md5: ea4ab628da38fa0f3c3ccff6ff236bcd
+      size: 2280348
+    - path: ../Dictionary.xlsx
+      hash: md5
+      md5: 515ddca923ef98c546ee7883d5cd4730
+      size: 10200
+    - path: 01_data_exploration.py
+      hash: md5
+      md5: 7ad835ab60c998b7d0699d02947b8e18
+      size: 9760
+    outs:
+    - path: column_information.csv
+      hash: md5
+      md5: 344d93b27af411fde8532212db34a8ce
+      size: 9491
+  target_variable_creation:
+    cmd: python 02_target_variable_creation.py
+    deps:
+    - path: ../DataScientist_01_Assessment.csv
+      hash: md5
+      md5: ea4ab628da38fa0f3c3ccff6ff236bcd
+      size: 2280348
+    - path: 02_target_variable_creation.py
+      hash: md5
+      md5: a8d68081d23b686a1c2c8a36fd05acf9
+      size: 13059
+    outs:
+    - path: data_with_proper_progress_status.csv
+      hash: md5
+      md5: 6d36cdb86f26380c3be227b4597e4da2
+      size: 2308410
+    - path: progress_status_analysis.png
+      hash: md5
+      md5: b4b1129a59cfd14f24f583b566fb20dc
+      size: 414845
+    - path: progress_status_summary.csv
+      hash: md5
+      md5: 9f6e1973cb78e8f4cc4e11cb31aa9108
+      size: 491
+  comprehensive_eda:
+    cmd: python 03_comprehensive_eda.py
+    deps:
+    - path: 03_comprehensive_eda.py
+      hash: md5
+      md5: 52d7d53f491a2b2afe918b08c0b81f58
+      size: 27319
+    - path: data_with_proper_progress_status.csv
+      hash: md5
+      md5: 6d36cdb86f26380c3be227b4597e4da2
+      size: 2308410
+    outs:
+    - path: comprehensive_eda_analysis.png
+      hash: md5
+      md5: 555d22bf269c6a61038ca4a8b456bf06
+      size: 1459630
+    - path: district_vulnerability_analysis.csv
+      hash: md5
+      md5: 4329f02861b1fd6b335be1a446f49281
+      size: 279
+    - path: feature_correlation_analysis.csv
+      hash: md5
+      md5: 9c36bce8cb8b4df54b4797cda5fedb00
+      size: 6699
+  ml_modeling:
+    cmd: python 04_ml_modeling.py
+    deps:
+    - path: 04_ml_modeling.py
+      hash: md5
+      md5: 509f9989f7b78feb9db45d87686cd1b8
+      size: 22677
+    - path: data_with_proper_progress_status.csv
+      hash: md5
+      md5: 6d36cdb86f26380c3be227b4597e4da2
+      size: 2308410
+    params:
+      params.yaml:
+        cv_folds: 5
+        random_state: 42
+        test_size: 0.2
+    outs:
+    - path: best_vulnerability_model.pkl
+      hash: md5
+      md5: 4926782f8fa773961d927c842a79ad96
+      size: 9626
+    - path: feature_importance_analysis.csv
+      hash: md5
+      md5: 14d52119ba80b825c078fc87221f29a4
+      size: 2331
+    - path: model_evaluation_summary.png
+      hash: md5
+      md5: 7d2820cd26438d245b865d1264e361e8
+      size: 460811
+    - path: model_features_info.csv
+      hash: md5
+      md5: 1b4609d2659bfb49f46ff247d475a1c6
+      size: 193
+  model_evaluation:
+    cmd: python 05_model_evaluation_and_insights.py
+    deps:
+    - path: 05_model_evaluation_and_insights.py
+      hash: md5
+      md5: 1fcd28bf2fb8205d622b7ef49a1da1a3
+      size: 20261
+    - path: best_vulnerability_model.pkl
+      hash: md5
+      md5: 4926782f8fa773961d927c842a79ad96
+      size: 9626
+    - path: data_with_proper_progress_status.csv
+      hash: md5
+      md5: 6d36cdb86f26380c3be227b4597e4da2
+      size: 2308410
+    - path: feature_importance_analysis.csv
+      hash: md5
+      md5: 14d52119ba80b825c078fc87221f29a4
+      size: 2331
+    - path: model_features_info.csv
+      hash: md5
+      md5: 1b4609d2659bfb49f46ff247d475a1c6
+      size: 193
+    outs:
+    - path: final_household_predictions.csv
+      hash: md5
+      md5: 1efb15725447b2c4d215591028bb9fa6
+      size: 509199
+    - path: final_vulnerability_assessment.png
+      hash: md5
+      md5: a5e681e8d59364684dec5a6c326e9532
+      size: 621721

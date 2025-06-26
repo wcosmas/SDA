@@ -27,6 +27,17 @@ import joblib
 import warnings
 warnings.filterwarnings('ignore')
 
+# MLflow and DagsHub integration
+import dagshub
+import mlflow
+import mlflow.sklearn
+
+# Initialize DagsHub connection
+dagshub.init(repo_owner='wcosmas', repo_name='my-first-repo', mlflow=True)
+
+# Note: Autologging disabled due to DagsHub compatibility
+# mlflow.autolog()
+
 def load_and_prepare_data():
     """Load and prepare the dataset for modeling"""
     
@@ -181,7 +192,7 @@ def create_preprocessing_pipeline(numeric_features, categorical_features, binary
     
     return preprocessor
 
-def train_and_evaluate_models(X, y, preprocessor):
+def train_and_evaluate_models(X, y, preprocessor, numeric_features, categorical_features, binary_features):
     """Train and evaluate multiple ML models"""
     
     print(f"\n5. MODEL TRAINING AND EVALUATION...")
@@ -211,55 +222,76 @@ def train_and_evaluate_models(X, y, preprocessor):
     for name, model in models.items():
         print(f"\n{name}:")
         
-        # Create pipeline
-        pipeline = Pipeline([
-            ('preprocessor', preprocessor),
-            ('classifier', model)
-        ])
-        
-        # Cross-validation
-        cv_scores = cross_val_score(pipeline, X_train, y_train, cv=5, scoring='f1')
-        
-        # Fit on training data
-        pipeline.fit(X_train, y_train)
-        
-        # Predictions
-        y_pred = pipeline.predict(X_test)
-        y_pred_proba = pipeline.predict_proba(X_test)[:, 1]
-        
-        # Calculate metrics
-        from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-        
-        accuracy = accuracy_score(y_test, y_pred)
-        precision = precision_score(y_test, y_pred)
-        recall = recall_score(y_test, y_pred)
-        f1 = f1_score(y_test, y_pred)
-        auc = roc_auc_score(y_test, y_pred_proba)
-        
-        print(f"  Cross-validation F1: {cv_scores.mean():.3f} (+/- {cv_scores.std() * 2:.3f})")
-        print(f"  Test Accuracy: {accuracy:.3f}")
-        print(f"  Test Precision: {precision:.3f}")
-        print(f"  Test Recall: {recall:.3f}")
-        print(f"  Test F1-score: {f1:.3f}")
-        print(f"  Test AUC: {auc:.3f}")
-        
-        results[name] = {
-            'pipeline': pipeline,
-            'cv_f1_mean': cv_scores.mean(),
-            'cv_f1_std': cv_scores.std(),
-            'accuracy': accuracy,
-            'precision': precision,
-            'recall': recall,
-            'f1': f1,
-            'auc': auc,
-            'y_pred': y_pred,
-            'y_pred_proba': y_pred_proba
-        }
-        
-        # Track best model
-        if f1 > best_score:
-            best_score = f1
-            best_model = name
+        # Start MLflow run for each model
+        with mlflow.start_run(run_name=f"Vulnerability_Model_{name.replace(' ', '_')}"):
+            # Log model parameters
+            mlflow.log_param('model_type', name)
+            mlflow.log_param('test_size', 0.2)
+            mlflow.log_param('cv_folds', 5)
+            mlflow.log_param('random_state', 42)
+            
+            # Create pipeline
+            pipeline = Pipeline([
+                ('preprocessor', preprocessor),
+                ('classifier', model)
+            ])
+            
+            # Cross-validation
+            cv_scores = cross_val_score(pipeline, X_train, y_train, cv=5, scoring='f1')
+            
+            # Fit on training data
+            pipeline.fit(X_train, y_train)
+            
+            # Predictions
+            y_pred = pipeline.predict(X_test)
+            y_pred_proba = pipeline.predict_proba(X_test)[:, 1]
+            
+            # Calculate metrics
+            from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+            
+            accuracy = accuracy_score(y_test, y_pred)
+            precision = precision_score(y_test, y_pred)
+            recall = recall_score(y_test, y_pred)
+            f1 = f1_score(y_test, y_pred)
+            auc = roc_auc_score(y_test, y_pred_proba)
+            
+            # Log metrics to MLflow
+            mlflow.log_metric('cv_f1_mean', cv_scores.mean())
+            mlflow.log_metric('cv_f1_std', cv_scores.std())
+            mlflow.log_metric('accuracy', accuracy)
+            mlflow.log_metric('precision', precision)
+            mlflow.log_metric('recall', recall)
+            mlflow.log_metric('f1_score', f1)
+            mlflow.log_metric('auc', auc)
+            
+            # Log additional model info as tags
+            mlflow.set_tag('model_name', name)
+            mlflow.set_tag('features_count', len(numeric_features) + len(categorical_features) + len(binary_features))
+            
+            print(f"  Cross-validation F1: {cv_scores.mean():.3f} (+/- {cv_scores.std() * 2:.3f})")
+            print(f"  Test Accuracy: {accuracy:.3f}")
+            print(f"  Test Precision: {precision:.3f}")
+            print(f"  Test Recall: {recall:.3f}")
+            print(f"  Test F1-score: {f1:.3f}")
+            print(f"  Test AUC: {auc:.3f}")
+            
+            results[name] = {
+                'pipeline': pipeline,
+                'cv_f1_mean': cv_scores.mean(),
+                'cv_f1_std': cv_scores.std(),
+                'accuracy': accuracy,
+                'precision': precision,
+                'recall': recall,
+                'f1': f1,
+                'auc': auc,
+                'y_pred': y_pred,
+                'y_pred_proba': y_pred_proba
+            }
+            
+            # Track best model
+            if f1 > best_score:
+                best_score = f1
+                best_model = name
     
     print(f"\n✓ Best performing model: {best_model} (F1-score: {best_score:.3f})")
     
@@ -492,7 +524,7 @@ def main():
         preprocessor = create_preprocessing_pipeline(numeric_features, categorical_features, binary_features)
         
         # Train and evaluate models
-        results, X_test, y_test, best_model = train_and_evaluate_models(X, y, preprocessor)
+        results, X_test, y_test, best_model = train_and_evaluate_models(X, y, preprocessor, numeric_features, categorical_features, binary_features)
         
         # Analyze feature importance
         analyze_feature_importance(results, numeric_features, categorical_features, binary_features)
