@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant FO as Field Officer
+    participant APP as WorkMate App
+    participant LOCAL as Local Engine
+    participant SYNC as Sync Service
+    participant BACKEND as Backend Services
+    participant DB as Database
+    
+    FO->>APP: Enter household data
+    APP->>LOCAL: Process data
+    LOCAL->>APP: Generate prediction
+    APP->>FO: Show results & recommendations
+    
+    Note over APP: When connectivity available
+    APP->>SYNC: Queue data for sync
+    SYNC->>BACKEND: Batch upload data
+    BACKEND->>DB: Store processed data
+    DB->>BACKEND: Confirmation
+    BACKEND->>SYNC: Sync complete
+    SYNC->>APP: Update sync status

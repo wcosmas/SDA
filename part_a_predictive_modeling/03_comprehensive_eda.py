@@ -320,18 +320,44 @@ def create_comprehensive_visualizations(df, corr_df):
     
     fig = plt.figure(figsize=(20, 16))
     
-    # 1. Correlation heatmap (top features)
+    # 1. Clean correlation heatmap (top features)
     plt.subplot(3, 3, 1)
-    top_features = corr_df.head(10)['Feature'].tolist()
-    top_features.append('HHIncome+Consumption+Residues/Day')
+    
+    # Create feature name mapping for readability
+    name_mapping = {
+        'HHIncome+Consumption+Residues/Day': 'Daily_Total',
+        'HHIncome+Consumption+Assets+Residues/Day': 'Daily_Plus_Assets',
+        'HouseholdIcome': 'Total_Income',
+        'AgricValue': 'Agric_Value',
+        'PerenialCropIncome': 'Perennial_Crops',
+        'SeasonalCropIncome': 'Seasonal_Crops',
+        'PersonalBusinessAndSelfEmployment': 'Business_Income',
+        'CasualLabour': 'Casual_Labor',
+        'RemittancesAndGifts': 'Remittances',
+        'LivestockIncome': 'Livestock',
+        'HouseholdSize': 'HH_Size',
+        'is_vulnerable': 'Vulnerable'
+    }
+    
+    # Select top 8 features + target for clean visualization
+    top_features = corr_df.head(8)['Feature'].tolist()
     top_features.append('is_vulnerable')
     
-    corr_matrix = df[top_features].corr()
-    sns.heatmap(corr_matrix, annot=True, cmap='RdYlBu_r', center=0, 
-                square=True, fmt='.2f', cbar_kws={"shrink": .8})
-    plt.title('Feature Correlation Matrix (Top Features)')
-    plt.xticks(rotation=45, ha='right')
-    plt.yticks(rotation=0)
+    # Create subset and rename for readability
+    corr_subset = df[top_features].copy()
+    corr_subset.columns = [name_mapping.get(col, col[:12]) for col in corr_subset.columns]
+    
+    corr_matrix = corr_subset.corr()
+    
+    # Create mask for upper triangle to reduce clutter
+    mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
+    
+    sns.heatmap(corr_matrix, mask=mask, annot=True, cmap='RdBu_r', center=0, 
+                square=True, fmt='.2f', cbar_kws={"shrink": .6},
+                annot_kws={'size': 8})
+    plt.title('Top Features Correlation Matrix', fontsize=10)
+    plt.xticks(rotation=45, ha='right', fontsize=8)
+    plt.yticks(rotation=0, fontsize=8)
     
     # 2. Income distribution by district
     plt.subplot(3, 3, 2)
@@ -446,16 +472,45 @@ def create_comprehensive_visualizations(df, corr_df):
     plt.xticks(x, asset_labels, rotation=45, ha='right')
     plt.legend()
     
-    # 8. Feature importance (correlation-based)
+    # 8. Feature importance (correlation-based) - Improved
     plt.subplot(3, 3, 8)
-    top_10_features = corr_df.head(10)
+    top_features_chart = corr_df.head(8)  # Reduced to 8 for readability
     
-    colors = ['red' if x < 0 else 'green' for x in top_10_features['Correlation_with_Vulnerability']]
-    plt.barh(range(len(top_10_features)), top_10_features['Correlation_with_Vulnerability'], color=colors, alpha=0.7)
-    plt.yticks(range(len(top_10_features)), [f[:20] for f in top_10_features['Feature']])
-    plt.xlabel('Correlation with Vulnerability')
-    plt.title('Top 10 Features - Correlation with Vulnerability')
+    # Create shortened feature names
+    short_names = []
+    for feature in top_features_chart['Feature']:
+        if feature in name_mapping:
+            short_names.append(name_mapping[feature])
+        else:
+            # Truncate and clean up long names
+            short_name = feature.replace('Income', '').replace('Household', 'HH').replace('Consumption', 'Cons')
+            short_names.append(short_name[:15])
+    
+    # Color code by correlation strength and direction
+    colors = []
+    for val in top_features_chart['Correlation_with_Vulnerability']:
+        if val > 0.3:
+            colors.append('darkred')      # Strong positive
+        elif val > 0.1:
+            colors.append('red')          # Moderate positive
+        elif val > -0.1:
+            colors.append('gray')         # Weak correlation
+        elif val > -0.3:
+            colors.append('blue')         # Moderate negative
+        else:
+            colors.append('darkblue')     # Strong negative
+    
+    bars = plt.barh(range(len(top_features_chart)), top_features_chart['Correlation_with_Vulnerability'], 
+                    color=colors, alpha=0.8)
+    plt.yticks(range(len(top_features_chart)), short_names, fontsize=9)
+    plt.xlabel('Correlation with Vulnerability', fontsize=9)
+    plt.title('Top Features - Vulnerability Correlation', fontsize=10)
     plt.grid(axis='x', alpha=0.3)
+    
+    # Add correlation values on bars
+    for i, (bar, val) in enumerate(zip(bars, top_features_chart['Correlation_with_Vulnerability'])):
+        plt.text(val + (0.01 if val >= 0 else -0.01), i, f'{val:.3f}', 
+                va='center', ha='left' if val >= 0 else 'right', fontsize=8)
     
     # 9. District vulnerability summary
     plt.subplot(3, 3, 9)

@@ -1,0 +1,49 @@
+graph TB
+    subgraph "Field Devices"
+        MD1[Mobile Device 1]
+        MD2[Mobile Device 2]
+        MDN[Mobile Device N]
+    end
+    
+    subgraph "Edge/CDN"
+        CDN[Content Delivery Network]
+        EDGE[Edge Locations]
+    end
+    
+    subgraph "Load Balancing"
+        LB[Load Balancer]
+        AG[API Gateway]
+    end
+    
+    subgraph "Application Services"
+        PS1[Prediction Service 1]
+        PS2[Prediction Service 2]
+        DS1[Data Sync Service 1]
+        DS2[Data Sync Service 2]
+        MS[Model Management]
+    end
+    
+    subgraph "Data Layer"
+        PDB[(Primary Database)]
+        RDB[(Read Replica)]
+        CACHE[(Redis Cache)]
+        DW[(Data Warehouse)]
+    end
+    
+    MD1 --> CDN
+    MD2 --> CDN
+    MDN --> CDN
+    CDN --> LB
+    LB --> AG
+    AG --> PS1
+    AG --> PS2
+    AG --> DS1
+    AG --> DS2
+    AG --> MS
+    
+    PS1 --> CACHE
+    PS2 --> CACHE
+    DS1 --> PDB
+    DS2 --> PDB
+    PDB --> RDB
+    PDB --> DW

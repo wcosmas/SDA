@@ -21,6 +21,7 @@ from apscheduler.triggers.cron import CronTrigger
 import joblib
 import numpy as np
 from sklearn.metrics import f1_score, accuracy_score
+import json
 
 from config.pipeline_config import config
 from ingestion.data_ingestion import  BatchIngestionProcessor
@@ -472,15 +473,252 @@ class ETLOrchestrator:
             return None
     
     async def _detect_data_drift(self) -> bool:
-        """Detect if there's significant data drift"""
+        """Detect if there's significant data drift using statistical methods"""
         try:
-            # This would use statistical tests to detect distribution changes
-            # For now, return False as placeholder
+            logger.info("Starting statistical data drift detection")
+            
+            # Load reference dataset (training data)
+            reference_data = await self._load_reference_dataset()
+            
+            # Load recent data (last 7 days)
+            recent_data = await self._load_recent_data(days=7)
+            
+            if reference_data is None or recent_data is None:
+                logger.warning("Insufficient data for drift detection")
+                return False
+            
+            if len(recent_data) < 50:  # Need minimum samples
+                logger.warning("Insufficient recent samples for drift detection", samples=len(recent_data))
+                return False
+            
+            # Key features for drift detection
+            numeric_features = ['HouseholdSize', 'AgricultureLand', 'HHIncome+Consumption+Residues/Day', 
+                              'VSLA_Profits', 'BusinessIncome']
+            categorical_features = ['District']
+            
+            drift_scores = []
+            feature_drift_results = {}
+            
+            # 1. Numeric feature drift detection
+            for feature in numeric_features:
+                if feature in reference_data.columns and feature in recent_data.columns:
+                    # Remove NaN values
+                    ref_values = reference_data[feature].dropna()
+                    new_values = recent_data[feature].dropna()
+                    
+                    if len(ref_values) > 0 and len(new_values) > 0:
+                        # Calculate Population Stability Index (PSI)
+                        psi_score = self._calculate_psi(ref_values, new_values)
+                        
+                        # Kolmogorov-Smirnov test
+                        ks_stat, ks_p_value = self._kolmogorov_smirnov_test(ref_values, new_values)
+                        
+                        # Mean shift detection
+                        mean_shift = abs((new_values.mean() - ref_values.mean()) / ref_values.std()) if ref_values.std() > 0 else 0
+                        
+                        feature_drift = {
+                            'psi_score': psi_score,
+                            'ks_statistic': ks_stat,
+                            'ks_p_value': ks_p_value,
+                            'mean_shift': mean_shift,
+                            'drift_detected': psi_score > 0.2 or ks_p_value < 0.05 or mean_shift > 2.0
+                        }
+                        
+                        feature_drift_results[feature] = feature_drift
+                        drift_scores.append(psi_score)
+                        
+                        logger.debug(f"Drift analysis for {feature}", 
+                                   psi=psi_score, ks_p=ks_p_value, mean_shift=mean_shift)
+            
+            # 2. Categorical feature drift detection
+            for feature in categorical_features:
+                if feature in reference_data.columns and feature in recent_data.columns:
+                    # Chi-square test for categorical drift
+                    chi2_stat, chi2_p_value = self._chi_square_test(
+                        reference_data[feature], recent_data[feature]
+                    )
+                    
+                    feature_drift = {
+                        'chi2_statistic': chi2_stat,
+                        'chi2_p_value': chi2_p_value,
+                        'drift_detected': chi2_p_value < 0.05
+                    }
+                    
+                    feature_drift_results[feature] = feature_drift
+                    
+                    logger.debug(f"Categorical drift analysis for {feature}", 
+                               chi2_p=chi2_p_value)
+            
+            # 3. Overall drift assessment
+            if drift_scores:
+                avg_drift_score = np.mean(drift_scores)
+                max_drift_score = np.max(drift_scores)
+                
+                # Drift detected if average PSI > threshold or any feature shows significant drift
+                drift_detected = (
+                    avg_drift_score > config.ml.data_drift_threshold or
+                    max_drift_score > 0.25 or
+                    any(result['drift_detected'] for result in feature_drift_results.values())
+                )
+                
+                # Store drift analysis results
+                drift_analysis = {
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    'avg_drift_score': avg_drift_score,
+                    'max_drift_score': max_drift_score,
+                    'drift_detected': drift_detected,
+                    'feature_results': feature_drift_results,
+                    'reference_samples': len(reference_data),
+                    'recent_samples': len(recent_data)
+                }
+                
+                # Save drift analysis for monitoring
+                await self._save_drift_analysis(drift_analysis)
+                
+                logger.info("Data drift analysis completed",
+                           avg_drift=avg_drift_score,
+                           max_drift=max_drift_score,
+                           drift_detected=drift_detected,
+                           features_analyzed=len(feature_drift_results))
+                
+                return drift_detected
+            
+            else:
+                logger.warning("No features available for drift analysis")
+                return False
+                
+        except Exception as e:
+            logger.error("Data drift detection failed", error=str(e))
             return False
+    
+    def _calculate_psi(self, reference: pd.Series, new: pd.Series, buckets: int = 10) -> float:
+        """Calculate Population Stability Index (PSI)"""
+        try:
+            # Create bins based on reference data
+            _, bin_edges = np.histogram(reference, bins=buckets)
+            
+            # Calculate distributions
+            ref_counts, _ = np.histogram(reference, bins=bin_edges)
+            new_counts, _ = np.histogram(new, bins=bin_edges)
+            
+            # Convert to percentages (avoid division by zero)
+            ref_pct = (ref_counts + 1) / (len(reference) + buckets)
+            new_pct = (new_counts + 1) / (len(new) + buckets)
+            
+            # Calculate PSI
+            psi = np.sum((new_pct - ref_pct) * np.log(new_pct / ref_pct))
+            
+            return abs(psi)
             
         except Exception as e:
-            logger.error("Failed to detect data drift", error=str(e))
-            return False
+            logger.error("PSI calculation failed", error=str(e))
+            return 0.0
+    
+    def _kolmogorov_smirnov_test(self, reference: pd.Series, new: pd.Series) -> tuple:
+        """Perform Kolmogorov-Smirnov test for distribution comparison"""
+        try:
+            from scipy.stats import ks_2samp
+            statistic, p_value = ks_2samp(reference, new)
+            return statistic, p_value
+        except ImportError:
+            logger.warning("scipy not available for KS test")
+            return 0.0, 1.0
+        except Exception as e:
+            logger.error("KS test failed", error=str(e))
+            return 0.0, 1.0
+    
+    def _chi_square_test(self, reference: pd.Series, new: pd.Series) -> tuple:
+        """Perform Chi-square test for categorical feature drift"""
+        try:
+            from scipy.stats import chi2_contingency
+            
+            # Get unique categories from both datasets
+            all_categories = sorted(set(reference.unique()) | set(new.unique()))
+            
+            # Create frequency tables
+            ref_counts = [sum(reference == cat) for cat in all_categories]
+            new_counts = [sum(new == cat) for cat in all_categories]
+            
+            # Perform chi-square test
+            contingency_table = np.array([ref_counts, new_counts])
+            chi2_stat, p_value, _, _ = chi2_contingency(contingency_table)
+            
+            return chi2_stat, p_value
+            
+        except ImportError:
+            logger.warning("scipy not available for chi-square test")
+            return 0.0, 1.0
+        except Exception as e:
+            logger.error("Chi-square test failed", error=str(e))
+            return 0.0, 1.0
+    
+    async def _load_reference_dataset(self) -> Optional[pd.DataFrame]:
+        """Load reference dataset for drift comparison"""
+        try:
+            # Try to load the most recent model training data
+            reference_files = await self.storage_manager.list_files("processed/")
+            
+            if not reference_files:
+                return None
+            
+            # Get the most recent training dataset
+            latest_file = max(reference_files, key=lambda x: x["last_modified"])
+            reference_data = await self.storage_manager.retrieve_data(latest_file["path"])
+            
+            logger.info("Reference dataset loaded", samples=len(reference_data))
+            return reference_data
+            
+        except Exception as e:
+            logger.error("Failed to load reference dataset", error=str(e))
+            return None
+    
+    async def _load_recent_data(self, days: int = 7) -> Optional[pd.DataFrame]:
+        """Load recent data for drift comparison"""
+        try:
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+            
+            # Get recent processed files
+            recent_files = await self.storage_manager.list_files("processed/")
+            recent_files = [f for f in recent_files if f["last_modified"] > cutoff_date]
+            
+            if not recent_files:
+                return None
+            
+            # Combine recent data
+            recent_data_frames = []
+            for file_info in recent_files:
+                data = await self.storage_manager.retrieve_data(file_info["path"])
+                recent_data_frames.append(data)
+            
+            if recent_data_frames:
+                combined_data = pd.concat(recent_data_frames, ignore_index=True)
+                logger.info("Recent data loaded", samples=len(combined_data), files=len(recent_files))
+                return combined_data
+            
+            return None
+            
+        except Exception as e:
+            logger.error("Failed to load recent data", error=str(e))
+            return None
+    
+    async def _save_drift_analysis(self, drift_analysis: Dict):
+        """Save drift analysis results for monitoring"""
+        try:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            file_path = f"monitoring/drift_analysis_{timestamp}.json"
+            
+            await self.storage_manager.store_data(
+                data=json.dumps(drift_analysis, indent=2),
+                file_path=file_path,
+                metadata={
+                    'type': 'drift_analysis',
+                    'timestamp': drift_analysis['timestamp'],
+                    'drift_detected': drift_analysis['drift_detected']
+                }
+            )
+            
+        except Exception as e:
+            logger.error("Failed to save drift analysis", error=str(e))
     
     async def _check_manual_retrain_trigger(self) -> bool:
         """Check if manual retraining has been triggered"""

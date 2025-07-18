@@ -1,0 +1,27 @@
+graph TB
+    UI[User Interface Layer] --> BL[Business Logic Layer]
+    BL --> DL[Data Layer]
+    
+    subgraph "Presentation Layer"
+        UI --> HS[Home Screen]
+        UI --> HF[Household Form]
+        UI --> PR[Prediction Results]
+        UI --> OS[Offline Status]
+        UI --> SS[Settings Screen]
+    end
+    
+    subgraph "Business Logic"
+        BL --> PE[Prediction Engine]
+        BL --> DV[Data Validator]
+        BL --> SM[Sync Manager]
+        BL --> OQ[Offline Queue]
+        BL --> MU[Model Updater]
+    end
+    
+    subgraph "Data Layer"
+        DL --> LDB[(Local SQLite)]
+        DL --> MS[Model Storage]
+        DL --> CM[Cache Manager]
+        DL --> SS[Secure Storage]
+        DL --> SQ[Sync Queue]
+    end

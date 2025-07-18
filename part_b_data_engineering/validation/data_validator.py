@@ -17,6 +17,8 @@ from datetime import datetime, timedelta
 import great_expectations as ge
 from great_expectations.core import ExpectationSuite
 import structlog
+from scipy.stats import ks_2samp
+from scipy.spatial.distance import jensenshannon
 
 from config.pipeline_config import config
 
@@ -34,6 +36,16 @@ class ValidationResult:
     failed_records: int
 
 
+@dataclass  
+class DriftAnalysisResult:
+    """Container for drift analysis results"""
+    drift_detected: bool
+    overall_drift_score: float
+    feature_drift_scores: Dict[str, float]
+    significant_features: List[str]
+    drift_summary: Dict[str, Any]
+
+
 class DataValidator:
     """Comprehensive data validation for household survey data with 75-variable structure"""
     
@@ -41,6 +53,372 @@ class DataValidator:
         self.expectations_suite = self._create_expectations_suite()
         self.business_rules = self._load_business_rules()
         self.data_dictionary = self._load_data_dictionary()
+        self.reference_data = None  # Will be loaded when needed for drift detection
+    
+    def set_reference_data(self, reference_data: pd.DataFrame):
+        """Set reference data for drift detection"""
+        self.reference_data = reference_data
+        logger.info("Reference data set for drift detection", samples=len(reference_data))
+    
+    def analyze_data_drift(self, new_data: pd.DataFrame) -> DriftAnalysisResult:
+        """Comprehensive drift analysis using statistical methods"""
+        try:
+            if self.reference_data is None:
+                logger.warning("No reference data available for drift analysis")
+                return DriftAnalysisResult(
+                    drift_detected=False,
+                    overall_drift_score=0.0,
+                    feature_drift_scores={},
+                    significant_features=[],
+                    drift_summary={'error': 'No reference data available'}
+                )
+            
+            logger.info("Starting comprehensive drift analysis", 
+                       new_samples=len(new_data),
+                       reference_samples=len(self.reference_data))
+            
+            # Key features for drift analysis
+            numeric_features = [
+                'HouseholdSize', 'AgricultureLand', 'HHIncome+Consumption+Residues/Day',
+                'VSLA_Profits', 'BusinessIncome', 'TimeToOPD', 'TimeToWater'
+            ]
+            categorical_features = ['District']
+            
+            feature_drift_scores = {}
+            significant_features = []
+            drift_details = {}
+            
+            # 1. Analyze numeric features
+            for feature in numeric_features:
+                if feature in self.reference_data.columns and feature in new_data.columns:
+                    drift_result = self._analyze_numeric_feature_drift(
+                        self.reference_data[feature].dropna(),
+                        new_data[feature].dropna(),
+                        feature
+                    )
+                    
+                    feature_drift_scores[feature] = drift_result['overall_score']
+                    drift_details[feature] = drift_result
+                    
+                    if drift_result['drift_detected']:
+                        significant_features.append(feature)
+            
+            # 2. Analyze categorical features
+            for feature in categorical_features:
+                if feature in self.reference_data.columns and feature in new_data.columns:
+                    drift_result = self._analyze_categorical_feature_drift(
+                        self.reference_data[feature],
+                        new_data[feature],
+                        feature
+                    )
+                    
+                    feature_drift_scores[feature] = drift_result['overall_score']
+                    drift_details[feature] = drift_result
+                    
+                    if drift_result['drift_detected']:
+                        significant_features.append(feature)
+            
+            # 3. Calculate overall drift
+            if feature_drift_scores:
+                overall_drift_score = np.mean(list(feature_drift_scores.values()))
+                max_drift_score = max(feature_drift_scores.values())
+                
+                # Drift detected if average > threshold or any feature significantly drifted
+                drift_detected = (
+                    overall_drift_score > config.ml.data_drift_threshold or
+                    max_drift_score > 0.25 or
+                    len(significant_features) > 0
+                )
+            else:
+                overall_drift_score = 0.0
+                drift_detected = False
+            
+            # 4. Generate drift summary
+            drift_summary = {
+                'analysis_timestamp': datetime.now().isoformat(),
+                'features_analyzed': len(feature_drift_scores),
+                'significant_drift_features': len(significant_features),
+                'max_feature_drift': max(feature_drift_scores.values()) if feature_drift_scores else 0,
+                'drift_threshold': config.ml.data_drift_threshold,
+                'feature_details': drift_details
+            }
+            
+            logger.info("Drift analysis completed",
+                       overall_drift=overall_drift_score,
+                       drift_detected=drift_detected,
+                       significant_features=len(significant_features))
+            
+            return DriftAnalysisResult(
+                drift_detected=drift_detected,
+                overall_drift_score=overall_drift_score,
+                feature_drift_scores=feature_drift_scores,
+                significant_features=significant_features,
+                drift_summary=drift_summary
+            )
+            
+        except Exception as e:
+            logger.error("Drift analysis failed", error=str(e))
+            return DriftAnalysisResult(
+                drift_detected=False,
+                overall_drift_score=0.0,
+                feature_drift_scores={},
+                significant_features=[],
+                drift_summary={'error': str(e)}
+            )
+    
+    def _analyze_numeric_feature_drift(self, reference: pd.Series, new: pd.Series, feature_name: str) -> Dict:
+        """Analyze drift in numeric feature using multiple statistical tests"""
+        try:
+            if len(reference) == 0 or len(new) == 0:
+                return {'drift_detected': False, 'overall_score': 0.0, 'error': 'Insufficient data'}
+            
+            # 1. Population Stability Index (PSI)
+            psi_score = self._calculate_psi(reference, new)
+            
+            # 2. Kolmogorov-Smirnov test
+            ks_statistic, ks_p_value = self._ks_test(reference, new)
+            
+            # 3. Mean shift detection (standardized)
+            mean_shift = abs((new.mean() - reference.mean()) / reference.std()) if reference.std() > 0 else 0
+            
+            # 4. Variance ratio test
+            var_ratio = new.var() / reference.var() if reference.var() > 0 else 1.0
+            variance_drift = abs(np.log(var_ratio))  # Log ratio for symmetric measure
+            
+            # 5. Distribution overlap (using histogram intersection)
+            overlap_score = self._calculate_distribution_overlap(reference, new)
+            
+            # Combine scores for overall assessment
+            drift_indicators = {
+                'psi_score': psi_score,
+                'ks_statistic': ks_statistic,
+                'ks_p_value': ks_p_value,
+                'mean_shift': mean_shift,
+                'variance_drift': variance_drift,
+                'distribution_overlap': overlap_score
+            }
+            
+            # Determine if drift is significant
+            drift_detected = (
+                psi_score > 0.2 or           # PSI threshold
+                ks_p_value < 0.05 or         # KS test significance
+                mean_shift > 2.0 or          # 2 standard deviations
+                variance_drift > 0.5 or      # 50% variance change
+                overlap_score < 0.7          # Less than 70% overlap
+            )
+            
+            # Overall score (0-1, higher = more drift)
+            overall_score = np.mean([
+                min(psi_score / 0.3, 1.0),           # Normalize PSI
+                min(ks_statistic, 1.0),              # KS statistic
+                min(mean_shift / 3.0, 1.0),          # Normalize mean shift
+                min(variance_drift / 0.7, 1.0),      # Normalize variance drift
+                1.0 - overlap_score                   # Invert overlap (higher = more drift)
+            ])
+            
+            return {
+                'drift_detected': drift_detected,
+                'overall_score': overall_score,
+                'indicators': drift_indicators,
+                'feature_name': feature_name,
+                'reference_stats': {
+                    'mean': reference.mean(),
+                    'std': reference.std(),
+                    'min': reference.min(),
+                    'max': reference.max()
+                },
+                'new_stats': {
+                    'mean': new.mean(),
+                    'std': new.std(),
+                    'min': new.min(),
+                    'max': new.max()
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Numeric drift analysis failed for {feature_name}", error=str(e))
+            return {'drift_detected': False, 'overall_score': 0.0, 'error': str(e)}
+    
+    def _analyze_categorical_feature_drift(self, reference: pd.Series, new: pd.Series, feature_name: str) -> Dict:
+        """Analyze drift in categorical feature"""
+        try:
+            # 1. Chi-square test for distribution changes
+            chi2_stat, chi2_p_value = self._chi_square_test(reference, new)
+            
+            # 2. Category frequency changes
+            ref_freq = reference.value_counts(normalize=True)
+            new_freq = new.value_counts(normalize=True)
+            
+            # Calculate frequency drift for common categories
+            common_categories = set(ref_freq.index) & set(new_freq.index)
+            freq_drifts = []
+            
+            for category in common_categories:
+                freq_drift = abs(new_freq[category] - ref_freq[category])
+                freq_drifts.append(freq_drift)
+            
+            avg_freq_drift = np.mean(freq_drifts) if freq_drifts else 0
+            
+            # 3. New/missing categories
+            new_categories = set(new_freq.index) - set(ref_freq.index)
+            missing_categories = set(ref_freq.index) - set(new_freq.index)
+            
+            # 4. Jensen-Shannon divergence
+            js_divergence = self._calculate_js_divergence(ref_freq, new_freq)
+            
+            drift_indicators = {
+                'chi2_statistic': chi2_stat,
+                'chi2_p_value': chi2_p_value,
+                'avg_frequency_drift': avg_freq_drift,
+                'js_divergence': js_divergence,
+                'new_categories': list(new_categories),
+                'missing_categories': list(missing_categories)
+            }
+            
+            # Determine if drift is significant
+            drift_detected = (
+                chi2_p_value < 0.05 or       # Chi-square significance
+                avg_freq_drift > 0.1 or      # Average frequency change > 10%
+                len(new_categories) > 0 or   # New categories appeared
+                len(missing_categories) > 0 or  # Categories disappeared
+                js_divergence > 0.1          # JS divergence threshold
+            )
+            
+            # Overall score
+            overall_score = np.mean([
+                min(avg_freq_drift * 5, 1.0),    # Normalize frequency drift
+                min(js_divergence * 5, 1.0),     # Normalize JS divergence
+                min(len(new_categories) / 3, 1.0),  # Normalize new categories
+                min(len(missing_categories) / 3, 1.0)  # Normalize missing categories
+            ])
+            
+            return {
+                'drift_detected': drift_detected,
+                'overall_score': overall_score,
+                'indicators': drift_indicators,
+                'feature_name': feature_name
+            }
+            
+        except Exception as e:
+            logger.error(f"Categorical drift analysis failed for {feature_name}", error=str(e))
+            return {'drift_detected': False, 'overall_score': 0.0, 'error': str(e)}
+    
+    def _calculate_psi(self, reference: pd.Series, new: pd.Series, buckets: int = 10) -> float:
+        """Calculate Population Stability Index"""
+        try:
+            # Create bins based on reference data
+            _, bin_edges = np.histogram(reference, bins=buckets)
+            
+            # Calculate distributions
+            ref_counts, _ = np.histogram(reference, bins=bin_edges)
+            new_counts, _ = np.histogram(new, bins=bin_edges)
+            
+            # Convert to percentages (avoid division by zero)
+            epsilon = 1e-6
+            ref_pct = (ref_counts + epsilon) / (len(reference) + epsilon * buckets)
+            new_pct = (new_counts + epsilon) / (len(new) + epsilon * buckets)
+            
+            # Calculate PSI
+            psi = np.sum((new_pct - ref_pct) * np.log(new_pct / ref_pct))
+            
+            return abs(psi)
+            
+        except Exception as e:
+            logger.error("PSI calculation failed", error=str(e))
+            return 0.0
+    
+    def _ks_test(self, reference: pd.Series, new: pd.Series) -> tuple:
+        """Perform Kolmogorov-Smirnov test"""
+        try:
+            from scipy.stats import ks_2samp
+            statistic, p_value = ks_2samp(reference, new)
+            return statistic, p_value
+        except ImportError:
+            logger.warning("scipy not available for KS test")
+            return 0.0, 1.0
+        except Exception as e:
+            logger.error("KS test failed", error=str(e))
+            return 0.0, 1.0
+    
+    def _chi_square_test(self, reference: pd.Series, new: pd.Series) -> tuple:
+        """Perform Chi-square test for categorical variables"""
+        try:
+            from scipy.stats import chi2_contingency
+            
+            # Get all unique categories
+            all_categories = sorted(set(reference.unique()) | set(new.unique()))
+            
+            # Create frequency tables
+            ref_counts = [sum(reference == cat) for cat in all_categories]
+            new_counts = [sum(new == cat) for cat in all_categories]
+            
+            # Perform chi-square test
+            contingency_table = np.array([ref_counts, new_counts])
+            chi2_stat, p_value, _, _ = chi2_contingency(contingency_table)
+            
+            return chi2_stat, p_value
+            
+        except ImportError:
+            logger.warning("scipy not available for chi-square test")
+            return 0.0, 1.0
+        except Exception as e:
+            logger.error("Chi-square test failed", error=str(e))
+            return 0.0, 1.0
+    
+    def _calculate_distribution_overlap(self, reference: pd.Series, new: pd.Series, bins: int = 20) -> float:
+        """Calculate distribution overlap using histogram intersection"""
+        try:
+            # Use common range for both distributions
+            min_val = min(reference.min(), new.min())
+            max_val = max(reference.max(), new.max())
+            
+            bin_edges = np.linspace(min_val, max_val, bins + 1)
+            
+            # Calculate normalized histograms
+            ref_hist, _ = np.histogram(reference, bins=bin_edges, density=True)
+            new_hist, _ = np.histogram(new, bins=bin_edges, density=True)
+            
+            # Normalize to get probabilities
+            ref_hist = ref_hist / np.sum(ref_hist)
+            new_hist = new_hist / np.sum(new_hist)
+            
+            # Calculate overlap (intersection)
+            overlap = np.sum(np.minimum(ref_hist, new_hist))
+            
+            return overlap
+            
+        except Exception as e:
+            logger.error("Distribution overlap calculation failed", error=str(e))
+            return 0.0
+    
+    def _calculate_js_divergence(self, ref_freq: pd.Series, new_freq: pd.Series) -> float:
+        """Calculate Jensen-Shannon divergence for categorical distributions"""
+        try:
+            # Get all categories
+            all_categories = sorted(set(ref_freq.index) | set(new_freq.index))
+            
+            # Create aligned probability vectors
+            ref_probs = np.array([ref_freq.get(cat, 0) for cat in all_categories])
+            new_probs = np.array([new_freq.get(cat, 0) for cat in all_categories])
+            
+            # Normalize
+            ref_probs = ref_probs / np.sum(ref_probs) if np.sum(ref_probs) > 0 else ref_probs
+            new_probs = new_probs / np.sum(new_probs) if np.sum(new_probs) > 0 else new_probs
+            
+            # Add small epsilon to avoid log(0)
+            epsilon = 1e-10
+            ref_probs = ref_probs + epsilon
+            new_probs = new_probs + epsilon
+            
+            # Calculate JS divergence
+            m = (ref_probs + new_probs) / 2
+            js_div = 0.5 * np.sum(ref_probs * np.log(ref_probs / m)) + 0.5 * np.sum(new_probs * np.log(new_probs / m))
+            
+            return js_div
+            
+        except Exception as e:
+            logger.error("JS divergence calculation failed", error=str(e))
+            return 0.0
     
     def validate_survey_data(self, data: Dict) -> ValidationResult:
         """Validate individual survey data submission"""
@@ -457,4 +835,15 @@ class DataValidator:
             "essential_features": config.ml.essential_features,
             "target_variable": config.ml.target_variable,
             "total_variables": config.dataset_info["total_variables"]
-        } 
+        }
+
+def calculate_psi(expected, actual, buckets=10):
+    expected_pct = np.histogram(expected, bins=buckets)[0] / len(expected)
+    actual_pct = np.histogram(actual, bins=buckets)[0] / len(actual)
+    psi = np.sum((actual_pct - expected_pct) * np.log(actual_pct / expected_pct))
+    return psi 
+
+def calculate_jensenshannon(reference_dist, new_dist):
+    js_distance = jensenshannon(reference_dist, new_dist)
+    drift_detected = js_distance > config.ml.data_drift_threshold
+    return drift_detected 

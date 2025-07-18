@@ -343,8 +343,15 @@ async def demonstrate_model_training_trigger():
             current_accuracy = 0.979  # Based on Part A results
             performance_threshold = 0.95  # Higher expectation
             
-            # Data drift simulation (would use statistical tests in practice)
-            data_drift_score = np.random.uniform(0.02, 0.08)  # Simulated drift
+            # Real statistical data drift detection
+            from pipeline.etl_orchestrator import ETLOrchestrator
+            orchestrator = ETLOrchestrator()
+            
+            # Use actual drift detection (placeholder data for demo)
+            reference_data = pd.Series(np.random.normal(100, 15, 1000))
+            new_data = pd.Series(np.random.normal(102, 16, 200))  # Slight shift
+            
+            data_drift_score = orchestrator._calculate_psi(reference_data, new_data)
             drift_threshold = 0.05
             
             # Model age

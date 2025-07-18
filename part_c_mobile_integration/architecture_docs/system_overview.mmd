@@ -1,0 +1,39 @@
+graph TB
+    FO[Field Officer] --> MA[WorkMate Mobile App]
+    MA --> LE[Local Prediction Engine]
+    MA --> LD[Local Database]
+    MA --> |When Online| AG[API Gateway]
+    
+    AG --> PS[Prediction Service]
+    AG --> DS[Data Sync Service]
+    AG --> MS[Model Management Service]
+    AG --> AS[Analytics Service]
+    
+    PS --> ML[ML Model Store]
+    DS --> DB[(PostgreSQL Database)]
+    MS --> ML
+    AS --> DW[(Data Warehouse)]
+    
+    ML --> CDN[CDN for Model Updates]
+    CDN --> MA
+    
+    DB --> ETL[ETL Pipeline]
+    ETL --> DW
+    DW --> BI[Business Intelligence Dashboard]
+    
+    subgraph "Mobile Device"
+        MA
+        LE
+        LD
+    end
+    
+    subgraph "Cloud Backend"
+        AG
+        PS
+        DS
+        MS
+        AS
+        DB
+        ML
+        DW
+    end

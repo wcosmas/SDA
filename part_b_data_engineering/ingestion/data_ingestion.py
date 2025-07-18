@@ -450,41 +450,26 @@ class DataIngestionService:
                         error=str(e))
     
     async def get_processing_statistics(self) -> Dict:
-        """Get enhanced processing statistics"""
+        """Get enhanced processing statistics from actual data"""
         try:
-            # In a real implementation, this would query the storage system
-            # For demo purposes, we'll return simulated statistics
+            # Query actual statistics from storage manager
+            storage_stats = await self.storage_manager.get_statistics()
+            
+            # Calculate actual metrics from stored data
+            processing_metrics = await self._calculate_processing_metrics()
+            vulnerability_metrics = await self._calculate_vulnerability_metrics()
+            geographic_metrics = await self._calculate_geographic_metrics()
+            quality_metrics = await self._calculate_quality_metrics()
             
             stats = {
                 'api_version': '2.0.0',
                 'dataset_version': 'DataScientist_01_Assessment',
                 'total_variables_supported': 75,
-                'processing_statistics': {
-                    'total_records_processed': 1247,  # Simulated
-                    'records_last_24h': 89,
-                    'records_last_week': 456,
-                    'average_processing_time_ms': 145,
-                    'validation_success_rate': 98.7,
-                    'data_completeness_average': 97.4
-                },
-                'vulnerability_statistics': {
-                    'total_households_assessed': 1247,
-                    'vulnerable_households': 534,
-                    'vulnerability_rate': 42.8,
-                    'critical_risk_households': 187,
-                    'high_risk_households': 347
-                },
-                'geographic_coverage': {
-                    'districts_covered': 4,
-                    'villages_covered': 145,
-                    'field_officers_active': 28
-                },
-                'data_quality_metrics': {
-                    'completeness_threshold_met': True,
-                    'validation_threshold_met': True,
-                    'drift_detected': False,
-                    'last_model_update': '2024-01-15T10:30:00Z'
-                },
+                'processing_statistics': processing_metrics,
+                'vulnerability_statistics': vulnerability_metrics,
+                'geographic_coverage': geographic_metrics,
+                'data_quality_metrics': quality_metrics,
+                'storage_statistics': storage_stats,
                 'last_updated': datetime.now(timezone.utc).isoformat()
             }
             
@@ -496,6 +481,277 @@ class DataIngestionService:
                 'error': 'Unable to retrieve statistics',
                 'timestamp': datetime.now(timezone.utc).isoformat()
             }
+    
+    async def _calculate_processing_metrics(self) -> Dict:
+        """Calculate processing metrics from actual data"""
+        try:
+            # Query processing logs and stored data
+            total_records = await self.storage_manager.count_records('household_records')
+            records_24h = await self.storage_manager.count_records_since(
+                'household_records', 
+                datetime.now(timezone.utc) - pd.Timedelta(hours=24)
+            )
+            records_week = await self.storage_manager.count_records_since(
+                'household_records',
+                datetime.now(timezone.utc) - pd.Timedelta(days=7)
+            )
+            
+            # Calculate average processing time from logs
+            processing_times = await self.storage_manager.get_processing_times()
+            avg_processing_time = np.mean(processing_times) * 1000 if processing_times else 0
+            
+            # Calculate validation success rate
+            validation_results = await self.storage_manager.get_validation_results()
+            success_rate = np.mean([r.get('is_valid', False) for r in validation_results]) * 100 if validation_results else 0
+            
+            # Calculate data completeness
+            completeness_rates = await self.storage_manager.get_completeness_rates()
+            avg_completeness = np.mean(completeness_rates) * 100 if completeness_rates else 0
+            
+            return {
+                'total_records_processed': total_records,
+                'records_last_24h': records_24h,
+                'records_last_week': records_week,
+                'average_processing_time_ms': round(avg_processing_time, 2),
+                'validation_success_rate': round(success_rate, 1),
+                'data_completeness_average': round(avg_completeness, 1)
+            }
+            
+        except Exception as e:
+            logger.error("Failed to calculate processing metrics", error=str(e))
+            return {
+                'total_records_processed': 0,
+                'records_last_24h': 0,
+                'records_last_week': 0,
+                'average_processing_time_ms': 0,
+                'validation_success_rate': 0,
+                'data_completeness_average': 0
+            }
+    
+    async def _calculate_vulnerability_metrics(self) -> Dict:
+        """Calculate vulnerability metrics from actual data"""
+        try:
+            # Query vulnerability data from stored records
+            vulnerability_data = await self.storage_manager.get_vulnerability_data()
+            
+            if not vulnerability_data:
+                return {
+                    'total_households_assessed': 0,
+                    'vulnerable_households': 0,
+                    'vulnerability_rate': 0,
+                    'critical_risk_households': 0,
+                    'high_risk_households': 0
+                }
+            
+            total_households = len(vulnerability_data)
+            vulnerable_count = sum(1 for record in vulnerability_data if record.get('is_vulnerable', False))
+            critical_count = sum(1 for record in vulnerability_data if record.get('vulnerability_class') == 'Severely Struggling')
+            high_risk_count = sum(1 for record in vulnerability_data if record.get('vulnerability_class') == 'Struggling')
+            
+            return {
+                'total_households_assessed': total_households,
+                'vulnerable_households': vulnerable_count,
+                'vulnerability_rate': round((vulnerable_count / total_households) * 100, 1) if total_households > 0 else 0,
+                'critical_risk_households': critical_count,
+                'high_risk_households': high_risk_count
+            }
+            
+        except Exception as e:
+            logger.error("Failed to calculate vulnerability metrics", error=str(e))
+            return {
+                'total_households_assessed': 0,
+                'vulnerable_households': 0,
+                'vulnerability_rate': 0,
+                'critical_risk_households': 0,
+                'high_risk_households': 0
+            }
+    
+    async def _calculate_geographic_metrics(self) -> Dict:
+        """Calculate geographic coverage metrics from actual data"""
+        try:
+            # Query geographic data from stored records
+            geographic_data = await self.storage_manager.get_geographic_data()
+            
+            if not geographic_data:
+                return {
+                    'districts_covered': 0,
+                    'villages_covered': 0,
+                    'field_officers_active': 0
+                }
+            
+            districts = set(record.get('District') for record in geographic_data if record.get('District'))
+            villages = set(record.get('Village') for record in geographic_data if record.get('Village'))
+            field_officers = set(record.get('field_officer_id') for record in geographic_data if record.get('field_officer_id'))
+            
+            return {
+                'districts_covered': len(districts),
+                'villages_covered': len(villages),
+                'field_officers_active': len(field_officers)
+            }
+            
+        except Exception as e:
+            logger.error("Failed to calculate geographic metrics", error=str(e))
+            return {
+                'districts_covered': 0,
+                'villages_covered': 0,
+                'field_officers_active': 0
+            }
+    
+    async def _calculate_quality_metrics(self) -> Dict:
+        """Calculate data quality metrics from actual data with statistical drift detection"""
+        try:
+            # Query quality metrics from validation results
+            validation_results = await self.storage_manager.get_validation_results()
+            completeness_rates = await self.storage_manager.get_completeness_rates()
+            
+            if not validation_results:
+                return {
+                    'completeness_threshold_met': False,
+                    'validation_threshold_met': False,
+                    'drift_detected': False,
+                    'drift_score': 0.0,
+                    'last_model_update': None
+                }
+            
+            # Calculate thresholds
+            avg_completeness = np.mean(completeness_rates) if completeness_rates else 0
+            avg_validation_success = np.mean([r.get('is_valid', False) for r in validation_results])
+            
+            completeness_threshold_met = avg_completeness >= 0.95
+            validation_threshold_met = avg_validation_success >= 0.95
+            
+            # Enhanced statistical drift detection
+            drift_detected, drift_score = await self._detect_statistical_drift()
+            
+            # Get last model update from storage metadata
+            last_update = await self.storage_manager.get_last_model_update()
+            
+            return {
+                'completeness_threshold_met': completeness_threshold_met,
+                'validation_threshold_met': validation_threshold_met,
+                'drift_detected': drift_detected,
+                'drift_score': drift_score,
+                'last_model_update': last_update.isoformat() if last_update else None
+            }
+            
+        except Exception as e:
+            logger.error("Failed to calculate quality metrics", error=str(e))
+            return {
+                'completeness_threshold_met': False,
+                'validation_threshold_met': False,
+                'drift_detected': False,
+                'drift_score': 0.0,
+                'last_model_update': None
+            }
+    
+    async def _detect_statistical_drift(self) -> tuple:
+        """Detect statistical drift in incoming data"""
+        try:
+            # Get recent data for drift analysis
+            recent_data = await self.storage_manager.get_recent_processed_data(days=3)
+            reference_data = await self.storage_manager.get_reference_data()
+            
+            if not recent_data or not reference_data or len(recent_data) < 20:
+                return False, 0.0
+            
+            # Key features for rapid drift detection
+            key_features = ['HouseholdSize', 'HHIncome+Consumption+Residues/Day']
+            drift_scores = []
+            
+            for feature in key_features:
+                if feature in recent_data.columns and feature in reference_data.columns:
+                    # Calculate PSI for quick drift detection
+                    psi_score = self._calculate_psi_simple(
+                        reference_data[feature].dropna(),
+                        recent_data[feature].dropna()
+                    )
+                    drift_scores.append(psi_score)
+            
+            if drift_scores:
+                avg_drift = np.mean(drift_scores)
+                drift_detected = avg_drift > 0.1  # Lower threshold for quick detection
+                
+                logger.debug("Statistical drift analysis completed",
+                           avg_drift_score=avg_drift,
+                           drift_detected=drift_detected)
+                
+                return drift_detected, avg_drift
+            
+            return False, 0.0
+            
+        except Exception as e:
+            logger.error("Statistical drift detection failed", error=str(e))
+            return False, 0.0
+    
+    def _calculate_psi_simple(self, reference: pd.Series, new: pd.Series, buckets: int = 5) -> float:
+        """Simplified PSI calculation for quick drift detection"""
+        try:
+            if len(reference) == 0 or len(new) == 0:
+                return 0.0
+            
+            # Create bins based on reference data quantiles
+            bin_edges = np.quantile(reference, np.linspace(0, 1, buckets + 1))
+            bin_edges = np.unique(bin_edges)  # Remove duplicates
+            
+            if len(bin_edges) < 2:
+                return 0.0
+            
+            # Calculate distributions
+            ref_counts, _ = np.histogram(reference, bins=bin_edges)
+            new_counts, _ = np.histogram(new, bins=bin_edges)
+            
+            # Convert to percentages (add small epsilon to avoid log(0))
+            epsilon = 1e-6
+            ref_pct = (ref_counts + epsilon) / (len(reference) + epsilon * len(ref_counts))
+            new_pct = (new_counts + epsilon) / (len(new) + epsilon * len(new_counts))
+            
+            # Calculate PSI
+            psi = np.sum((new_pct - ref_pct) * np.log(new_pct / ref_pct))
+            
+            return abs(psi)
+            
+        except Exception as e:
+            logger.error("Simple PSI calculation failed", error=str(e))
+            return 0.0
+
+    # Enhanced drift detection for production
+    async def _detect_data_drift(self) -> bool:
+        """Enhanced statistical drift detection"""
+        try:
+            # Load reference dataset (training data)
+            reference_data = await self._load_reference_dataset()
+            
+            # Load recent data
+            recent_data = await self._load_recent_data(days=7)
+            
+            if reference_data is None or recent_data is None:
+                return False
+            
+            # Calculate PSI for key numeric features
+            key_features = ['HouseholdSize', 'AgricultureLand', 'HHIncome+Consumption+Residues/Day']
+            drift_scores = []
+            
+            for feature in key_features:
+                if feature in recent_data.columns:
+                    psi_score = self._calculate_psi(
+                        reference_data[feature].dropna(),
+                        recent_data[feature].dropna()
+                    )
+                    drift_scores.append(psi_score)
+            
+            # Check if average drift exceeds threshold
+            avg_drift = np.mean(drift_scores) if drift_scores else 0
+            drift_detected = avg_drift > config.ml.data_drift_threshold
+            
+            logger.info("Data drift analysis completed", 
+                       avg_drift_score=avg_drift,
+                       drift_detected=drift_detected)
+            
+            return drift_detected
+            
+        except Exception as e:
+            logger.error("Data drift detection failed", error=str(e))
+            return False
 
 
 class BatchIngestionProcessor:
